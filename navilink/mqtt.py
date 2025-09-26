@@ -3,13 +3,15 @@ MQTT/WebSocket communication for real-time device interaction.
 """
 
 import asyncio
-import base64
 import json
 import logging
+import struct
+import time
 from typing import Dict, Any, Optional, Callable, List
 import websockets
 import aiohttp
 
+from .mqtt_protocol import MQTTProtocol, MQTTPacketType
 from .models import DeviceStatus, Reservation, EnergyUsage
 from .exceptions import WebSocketError, MQTTError, CommunicationError
 from .utils import generate_session_id, create_websocket_url, parse_device_response
@@ -49,13 +51,16 @@ class NaviLinkMQTT:
         self._monitoring = False
         self._session_id = generate_session_id()
         
+        # MQTT protocol handler
+        self._mqtt_protocol = MQTTProtocol()
+        
         # Message handling
         self._message_id = 1
         self._pending_responses: Dict[str, asyncio.Future] = {}
         self._status_callback: Optional[Callable[[DeviceStatus], None]] = None
         
-        # Topic patterns
-        self._command_topic = f"cmd/{self._device.device_type}/navilink-{self._device.mac_address}/st"
+        # Topic patterns from HAR analysis
+        self._command_topic_base = f"cmd/{self._device.device_type}/navilink-{self._device.mac_address}/st"
         self._response_topic_base = f"cmd/{self._device.device_type}/{self._get_group_id()}/{self._get_user_id()}/{self._session_id}/res"
         
     def _get_group_id(self) -> str:
@@ -98,11 +103,6 @@ class NaviLinkMQTT:
                 session_token=aws_creds["sessionToken"]
             )
             
-            logger.info(f"Generated WebSocket URL: {ws_url[:100]}...")
-            logger.debug(f"Full WebSocket URL: {ws_url}")
-            logger.info(f"Using Access Key: {aws_creds['accessKeyId'][:10]}...")
-            logger.info(f"Session Token length: {len(aws_creds['sessionToken'])}")
-            
             logger.debug(f"Connecting to WebSocket: {ws_url[:100]}...")
             
             # Connect to WebSocket
@@ -114,8 +114,13 @@ class NaviLinkMQTT:
                 }
             )
             
+            logger.info("WebSocket connection established")
+            
             # Send MQTT CONNECT packet
             await self._send_mqtt_connect()
+            
+            # Wait for CONNACK
+            await self._wait_for_connack()
             
             # Start message handling loop
             asyncio.create_task(self._message_handler())
@@ -137,6 +142,13 @@ class NaviLinkMQTT:
         self._connected = False
         
         if self._websocket:
+            try:
+                # Send DISCONNECT packet
+                disconnect_packet = bytes([0xE0, 0x00])  # DISCONNECT packet
+                await self._websocket.send(disconnect_packet)
+            except:
+                pass
+            
             await self._websocket.close()
             self._websocket = None
             
@@ -150,25 +162,46 @@ class NaviLinkMQTT:
     
     async def _send_mqtt_connect(self):
         """Send MQTT CONNECT packet."""
-        # Based on HAR analysis, create MQTT CONNECT packet
-        client_id = f"{self._session_id}"
+        # Based on HAR analysis
+        client_id = self._session_id
+        username = "?SDK=Android&Version=2.22.0"
         
-        # MQTT CONNECT packet structure (simplified)
-        # This is a basic implementation - may need refinement based on actual protocol
-        connect_packet = {
-            "type": "connect",
-            "clientId": client_id,
-            "keepalive": 60,
-            "username": f"?SDK=Android&Version=2.22.0",
-            "clean": True
-        }
+        connect_packet = self._mqtt_protocol.create_connect_packet(
+            client_id=client_id,
+            username=username,
+            clean_session=True,
+            keep_alive=300  # 5 minutes
+        )
         
-        # Convert to binary MQTT format (simplified)
-        # In a full implementation, this would create proper MQTT binary packets
-        await self._send_raw_message(json.dumps(connect_packet))
+        logger.debug(f"Sending CONNECT packet: {connect_packet.hex()}")
+        await self._websocket.send(connect_packet)
+    
+    async def _wait_for_connack(self):
+        """Wait for MQTT CONNACK response."""
+        try:
+            # Wait for CONNACK with timeout
+            data = await asyncio.wait_for(self._websocket.recv(), timeout=10.0)
+            
+            if isinstance(data, str):
+                data = data.encode()
+            
+            message = self._mqtt_protocol.parse_packet(data)
+            
+            if message.packet_type == MQTTPacketType.CONNACK:
+                connack = self._mqtt_protocol.parse_connack(message.payload)
+                if connack["return_code"] == 0:
+                    logger.info("MQTT connection accepted")
+                else:
+                    raise MQTTError(f"MQTT connection refused: {connack['return_code_name']}")
+            else:
+                raise MQTTError(f"Expected CONNACK, got packet type {message.packet_type}")
+                
+        except asyncio.TimeoutError:
+            raise MQTTError("Timeout waiting for CONNACK")
     
     async def _subscribe_to_topics(self):
         """Subscribe to device response topics."""
+        # Based on HAR analysis, subscribe to various response topics
         topics = [
             f"{self._response_topic_base}",
             f"{self._response_topic_base}/did", 
@@ -178,108 +211,133 @@ class NaviLinkMQTT:
             f"{self._response_topic_base}/recirc-rsv/rd"
         ]
         
-        for i, topic in enumerate(topics, 1):
-            subscribe_msg = {
-                "type": "subscribe",
-                "messageId": i,
-                "topic": topic,
-                "qos": 1
-            }
-            await self._send_raw_message(json.dumps(subscribe_msg))
-    
-    async def _send_raw_message(self, message: str):
-        """Send raw message to WebSocket."""
-        if not self._websocket:
-            raise MQTTError("Not connected to WebSocket")
+        for topic in topics:
+            subscribe_packet = self._mqtt_protocol.create_subscribe_packet(topic, qos=1)
+            logger.debug(f"Subscribing to: {topic}")
+            await self._websocket.send(subscribe_packet)
             
-        # Encode message as base64 for binary transport
-        encoded = base64.b64encode(message.encode()).decode()
-        await self._websocket.send(encoded)
+            # Wait for SUBACK
+            await self._wait_for_suback()
+    
+    async def _wait_for_suback(self):
+        """Wait for SUBSCRIBE acknowledgment."""
+        try:
+            data = await asyncio.wait_for(self._websocket.recv(), timeout=5.0)
+            
+            if isinstance(data, str):
+                data = data.encode()
+            
+            message = self._mqtt_protocol.parse_packet(data)
+            
+            if message.packet_type == MQTTPacketType.SUBACK:
+                suback = self._mqtt_protocol.parse_suback(message.payload)
+                logger.debug(f"SUBACK received for packet {suback['packet_id']}")
+            else:
+                logger.warning(f"Expected SUBACK, got packet type {message.packet_type}")
+                
+        except asyncio.TimeoutError:
+            logger.warning("Timeout waiting for SUBACK")
     
     async def _message_handler(self):
         """Handle incoming WebSocket messages."""
         try:
             async for message in self._websocket:
                 try:
-                    # Decode message
-                    if isinstance(message, bytes):
-                        decoded = base64.b64decode(message).decode()
-                    else:
-                        decoded = message
-                        
-                    # Parse JSON message
-                    try:
-                        data = json.loads(decoded)
-                    except json.JSONDecodeError:
-                        logger.debug(f"Non-JSON message received: {decoded}")
-                        continue
+                    if isinstance(message, str):
+                        message = message.encode()
                     
-                    await self._handle_message(data)
+                    mqtt_message = self._mqtt_protocol.parse_packet(message)
+                    await self._handle_mqtt_message(mqtt_message)
                     
                 except Exception as e:
-                    logger.error(f"Error processing message: {e}")
+                    logger.error(f"Error processing MQTT message: {e}")
                     
         except websockets.exceptions.ConnectionClosed:
-            logger.info("WebSocket connection closed")
+            logger.info("MQTT WebSocket connection closed")
             self._connected = False
         except Exception as e:
-            logger.error(f"Error in message handler: {e}")
+            logger.error(f"Error in MQTT message handler: {e}")
             self._connected = False
     
-    async def _handle_message(self, data: Dict[str, Any]):
+    async def _handle_mqtt_message(self, message):
         """
-        Handle parsed message data.
+        Handle parsed MQTT message.
         
         Args:
-            data: Parsed message data
+            message: Parsed MQTTMessage object
         """
-        message_type = data.get("type")
-        
-        if message_type == "publish":
-            topic = data.get("topic", "")
-            payload = data.get("payload", {})
+        if message.packet_type == MQTTPacketType.PUBLISH:
+            publish_data = self._mqtt_protocol.parse_publish(message.flags, message.payload)
+            topic = publish_data["topic"]
+            payload = publish_data["payload"]
             
-            # Handle different message types based on topic
-            if "/res" in topic and "response" in payload:
-                await self._handle_device_response(payload)
-            elif "/st" in topic:
-                await self._handle_status_update(payload)
-                
-        elif message_type == "suback":
-            logger.debug("Subscription acknowledged")
+            logger.debug(f"Received PUBLISH on topic: {topic}")
             
-        elif message_type == "connack":
-            logger.debug("Connection acknowledged")
+            # Send PUBACK if QoS > 0
+            if publish_data["qos"] > 0 and publish_data["packet_id"]:
+                puback_packet = struct.pack('!BBH', 0x40, 0x02, publish_data["packet_id"])
+                await self._websocket.send(puback_packet)
+            
+            # Handle response messages
+            if "/res" in topic:
+                await self._handle_device_response(topic, payload)
+            
+        elif message.packet_type == MQTTPacketType.PUBACK:
+            logger.debug("PUBACK received")
+            
+        elif message.packet_type == MQTTPacketType.PINGRESP:
+            logger.debug("PINGRESP received")
+            
+        else:
+            logger.debug(f"Unhandled MQTT packet type: {message.packet_type}")
     
-    async def _handle_device_response(self, payload: Dict[str, Any]):
+    async def _handle_device_response(self, topic: str, payload: bytes):
         """
         Handle device response message.
         
         Args:
+            topic: MQTT topic
             payload: Message payload
         """
-        session_id = payload.get("sessionID")
-        response_data = payload.get("response", {})
-        
-        # Complete pending future if exists
-        if session_id in self._pending_responses:
-            future = self._pending_responses.pop(session_id)
-            if not future.done():
-                future.set_result(response_data)
+        try:
+            # Parse JSON response
+            response_text = payload.decode('utf-8')
+            response_data = json.loads(response_text)
+            
+            logger.debug(f"Device response: {response_text[:100]}...")
+            
+            # Extract session ID to match with pending requests
+            session_id = response_data.get("sessionID")
+            
+            # Complete pending future if exists
+            if session_id in self._pending_responses:
+                future = self._pending_responses.pop(session_id)
+                if not future.done():
+                    future.set_result(response_data.get("response", {}))
+            
+            # Handle status updates
+            if "status" in response_data.get("response", {}):
+                await self._handle_status_update(response_data["response"])
+                
+        except Exception as e:
+            logger.error(f"Error parsing device response: {e}")
     
-    async def _handle_status_update(self, payload: Dict[str, Any]):
+    async def _handle_status_update(self, response_data: Dict[str, Any]):
         """
         Handle status update message.
         
         Args:
-            payload: Status update payload
+            response_data: Status update data
         """
         try:
-            status = self._parse_device_status(payload)
+            status = self._parse_device_status(response_data)
             if status and self._status_callback:
-                self._status_callback(status)
+                if asyncio.iscoroutinefunction(self._status_callback):
+                    await self._status_callback(status)
+                else:
+                    self._status_callback(status)
         except Exception as e:
-            logger.error(f"Error parsing status update: {e}")
+            logger.error(f"Error handling status update: {e}")
     
     def _parse_device_status(self, data: Dict[str, Any]) -> Optional[DeviceStatus]:
         """
@@ -392,6 +450,7 @@ class NaviLinkMQTT:
     async def send_device_command(
         self, 
         command: int, 
+        topic_suffix: str = "",
         additional_data: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
@@ -399,6 +458,7 @@ class NaviLinkMQTT:
         
         Args:
             command: Command ID
+            topic_suffix: Additional topic suffix (e.g., "/did")
             additional_data: Additional command parameters
             
         Returns:
@@ -406,12 +466,12 @@ class NaviLinkMQTT:
         """
         if not self._connected:
             raise MQTTError("Not connected to MQTT")
-            
-        # Generate unique session ID for this request
-        request_session_id = f"{int(asyncio.get_event_loop().time() * 1000)}"
         
-        # Build command message
-        message = {
+        # Generate unique session ID for this request
+        request_session_id = str(int(time.time() * 1000))
+        
+        # Build command message based on HAR analysis
+        command_data = {
             "clientID": self._session_id,
             "protocolVersion": 2,
             "request": {
@@ -421,18 +481,30 @@ class NaviLinkMQTT:
                 "macAddress": self._device.mac_address,
                 **(additional_data or {})
             },
-            "requestTopic": f"{self._command_topic}",
-            "responseTopic": f"{self._response_topic_base}",
+            "requestTopic": f"{self._command_topic_base}{topic_suffix}",
+            "responseTopic": f"{self._response_topic_base}{topic_suffix}",
             "sessionID": request_session_id
         }
+        
+        # Create JSON payload
+        payload = json.dumps(command_data).encode('utf-8')
+        
+        # Create MQTT PUBLISH packet
+        topic = f"{self._command_topic_base}{topic_suffix}"
+        publish_packet = self._mqtt_protocol.create_publish_packet(
+            topic=topic,
+            payload=payload,
+            qos=1
+        )
         
         # Create future for response
         response_future = asyncio.Future()
         self._pending_responses[request_session_id] = response_future
         
+        logger.debug(f"Sending command {command} to topic: {topic}")
+        
         # Send command
-        command_json = json.dumps(message)
-        await self._send_raw_message(command_json)
+        await self._websocket.send(publish_packet)
         
         try:
             # Wait for response with timeout
@@ -457,6 +529,16 @@ class NaviLinkMQTT:
             
         return status
     
+    async def get_device_info(self) -> Dict[str, Any]:
+        """
+        Get detailed device information.
+        
+        Returns:
+            Device info dictionary
+        """
+        response = await self.send_device_command(self.CMD_GET_DEVICE_INFO, "/did")
+        return response
+    
     async def get_reservations(self) -> List[Reservation]:
         """
         Get device reservations.
@@ -464,7 +546,7 @@ class NaviLinkMQTT:
         Returns:
             List of Reservation objects
         """
-        response = await self.send_device_command(self.CMD_GET_RESERVATIONS)
+        response = await self.send_device_command(self.CMD_GET_RESERVATIONS, "/rsv/rd")
         
         # Parse reservations from response
         reservations = []
@@ -497,19 +579,20 @@ class NaviLinkMQTT:
         Returns:
             List of EnergyUsage objects
         """
-        # TODO: Implement energy usage command
-        # This requires analyzing the energy usage query commands from HAR
+        # TODO: Implement energy usage commands based on HAR analysis
+        # This requires analyzing the energy usage query commands
         return []
     
     async def start_monitoring(self):
         """Start real-time monitoring loop."""
         self._monitoring = True
         
-        # Request initial status
+        # Request initial device info and status
         try:
+            await self.get_device_info()
             await self.get_device_status()
         except Exception as e:
-            logger.warning(f"Failed to get initial status: {e}")
+            logger.warning(f"Failed to get initial device data: {e}")
     
     async def stop_monitoring(self):
         """Stop real-time monitoring."""
