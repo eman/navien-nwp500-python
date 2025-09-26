@@ -1,0 +1,5 @@
+# Core dependencies for navilink
+awsiotsdk>=1.11.0
+asyncio-mqtt>=0.13.0
+boto3>=1.26.0
+websockets>=11.0.0
