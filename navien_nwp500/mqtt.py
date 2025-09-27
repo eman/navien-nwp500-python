@@ -6,13 +6,12 @@ import asyncio
 import json
 import logging
 import time
-from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from .aws_iot_websocket import AWSIoTWebSocketConnection
 from .config import ReconnectConfig
-from .exceptions import CommunicationError, MQTTError, WebSocketError
+from .exceptions import MQTTError, WebSocketError
 from .models import DeviceStatus, EnergyUsage, Reservation
 
 if TYPE_CHECKING:

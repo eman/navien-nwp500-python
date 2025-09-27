@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from navilink import NaviLinkDevice
-from navilink.exceptions import DeviceError, DeviceOfflineError
+from navien_nwp500 import NaviLinkDevice
+from navien_nwp500.exceptions import DeviceError, DeviceOfflineError
 
 
 class TestNaviLinkDevice:

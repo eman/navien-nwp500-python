@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 import pytest
 
-from navilink import NaviLinkClient, NaviLinkConfig
-from navilink.exceptions import APIError, AuthenticationError, CommunicationError
+from navien_nwp500 import NaviLinkClient, NaviLinkConfig
+from navien_nwp500.exceptions import APIError, AuthenticationError, CommunicationError
 
 
 class TestNaviLinkClient:

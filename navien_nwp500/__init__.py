@@ -1,9 +1,11 @@
 """
 Navien NWP500 Python Library
 
-A production-ready Python library for communicating with Navien NWP500 Heat Pump Water Heaters
+A production-ready Python library for communicating with Navien NWP500
+Heat Pump Water Heaters
 via the NaviLink service. Provides both REST API access and AWS IoT Core MQTT real-time
-communication capabilities with a focus on heat pump water heater monitoring and data collection.
+communication capabilities with a focus on heat pump water heater
+monitoring and data collection.
 
 Status: Production Ready ✅
 Primary Use Case: Long-term tank monitoring with DHW (Domestic Hot Water) charge level tracking

@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from navilink.config import HTTPConfig, MQTTConfig, NaviLinkConfig, ReconnectConfig
-from navilink.exceptions import NaviLinkError
+from navien_nwp500.config import HTTPConfig, MQTTConfig, NaviLinkConfig, ReconnectConfig
+from navien_nwp500.exceptions import NaviLinkError
 
 
 class TestNaviLinkConfig:

@@ -30,9 +30,9 @@ from pathlib import Path
 # Add the parent directory to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from navilink import NaviLinkClient, NaviLinkConfig, NaviLinkDevice
-from navilink.config import ReconnectConfig
-from navilink.exceptions import NaviLinkError
+from navien_nwp500 import NaviLinkClient, NaviLinkConfig, NaviLinkDevice
+from navien_nwp500.config import ReconnectConfig
+from navien_nwp500.exceptions import NaviLinkError
 
 
 class ProductionIntegrationTest:

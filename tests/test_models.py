@@ -4,8 +4,8 @@ Unit tests for data models and parsing functionality.
 
 import pytest
 
-from navilink.exceptions import NaviLinkError
-from navilink.models import DeviceFeatures, DeviceInfo, DeviceStatus
+from navien_nwp500.exceptions import NaviLinkError
+from navien_nwp500.models import DeviceFeatures, DeviceInfo, DeviceStatus
 
 
 class TestDeviceInfo:
