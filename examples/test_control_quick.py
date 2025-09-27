@@ -17,36 +17,36 @@ async def test_control():
     # Set up logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
-    
+
     try:
         # Load configuration
         config = NaviLinkConfig.from_environment()
-        
+
         if not config.email or not config.password:
             print("❌ Please configure credentials in .env file")
             return
-            
+
         print("🔐 Authenticating...")
         client = NaviLinkClient(config=config)
         await client.authenticate(config.email, config.password)
         print("✅ Authentication successful")
-        
+
         print("📱 Getting devices...")
         devices = await client.get_devices()
         if not devices:
             print("❌ No devices found")
             return
-            
+
         device = devices[0]
         print(f"🏠 Using device: {device.name} (MAC: {device.mac_address})")
-        
+
         # Check connectivity
         connectivity = await device.get_connectivity_status()
-        if not connectivity.get('device_connected'):
+        if not connectivity.get("device_connected"):
             print("⚠️ WARNING: Device appears offline")
         else:
             print("✅ Device is online")
-            
+
         # Get current status
         print("\n📊 Current Status:")
         try:
@@ -58,10 +58,10 @@ async def test_control():
             print(f"   Power: {status.current_inst_power}W")
         except Exception as e:
             print(f"   ❌ Status error: {e}")
-            
+
         # Test control methods (be careful!)
         print("\n🎛️ Testing Control Methods:")
-        
+
         # Test DHW mode validation (should work without sending)
         try:
             print("   Testing DHW mode validation...")
@@ -73,7 +73,7 @@ async def test_control():
                 print(f"   ✅ Validation working: {e}")
         except Exception as e:
             print(f"   ⚠️ Validation test error: {e}")
-            
+
         # Test temperature validation (should work without sending)
         try:
             print("   Testing temperature validation...")
@@ -84,16 +84,17 @@ async def test_control():
                 print(f"   ✅ Validation working: {e}")
         except Exception as e:
             print(f"   ⚠️ Temperature validation test error: {e}")
-            
+
         print("\n✅ Control functionality tests complete")
         print("💡 Use device_control_demo.py for interactive control testing")
-        
+
     except Exception as e:
         print(f"❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
-        if 'client' in locals():
+        if "client" in locals():
             await client.close()
 
 
