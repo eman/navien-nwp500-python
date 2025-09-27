@@ -472,7 +472,7 @@ class NaviLinkDevice:
     @property
     def is_connected(self) -> bool:
         """Check if device is connected for real-time communication."""
-        return self._connected and self._mqtt and self._mqtt.is_connected
+        return self._connected and self._mqtt is not None and self._mqtt.is_connected
 
     @property
     def last_status(self) -> Optional[DeviceStatus]:

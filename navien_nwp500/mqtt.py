@@ -83,8 +83,8 @@ class NaviLinkMQTT:
 
         # Enhanced metrics and monitoring
         self._message_count = 0
-        self._last_message_time = 0
-        self._connection_start_time = 0
+        self._last_message_time: float = 0.0
+        self._connection_start_time: float = 0.0
         self._statistics = {
             "messages_received": 0,
             "messages_sent": 0,
@@ -322,7 +322,7 @@ class NaviLinkMQTT:
 
         except Exception as e:
             logger.error(f"❌ Error handling message: {e}")
-            logger.debug(f"Raw message: {payload}")
+            logger.debug(f"Raw message: {payload!r}")
 
     async def _subscribe_to_topics(self):
         """Subscribe to device response topics based on HAR file analysis."""
@@ -1092,11 +1092,15 @@ class NaviLinkMQTT:
         """Check if MQTT is connected."""
         return (
             self._connection_state == ConnectionState.CONNECTED
-            and self._aws_connection
+            and self._aws_connection is not None
             and self._aws_connection.is_connected
         )
 
     @property
     def is_monitoring(self) -> bool:
         """Check if monitoring is active."""
-        return self._monitoring and self._polling_task and not self._polling_task.done()
+        return (
+            self._monitoring
+            and self._polling_task is not None
+            and not self._polling_task.done()
+        )
