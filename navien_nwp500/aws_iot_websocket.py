@@ -7,23 +7,24 @@ import json
 import logging
 import ssl
 import uuid
-from typing import Callable, Optional, Dict, Any
 from dataclasses import dataclass
+from typing import Any, Callable, Dict, Optional
 
 try:
     # Try MQTT5 first, fall back to MQTT3 if not available
     try:
+        from awscrt.mqtt5 import Client as Mqtt5Client
+        from awscrt.mqtt5 import PublishPacket, QoS, SubscribePacket
         from awsiot import mqtt5_client_builder
-        from awscrt.mqtt5 import Client as Mqtt5Client, QoS, PublishPacket, SubscribePacket
         MQTT5_AVAILABLE = True
     except ImportError:
         MQTT5_AVAILABLE = False
         
     # Always import MQTT3 as fallback
-    from awsiot import mqtt_connection_builder
-    from awscrt import io, mqtt, auth, http
+    from awscrt import auth, http, io, mqtt
     from awscrt.io import LogLevel
     from awscrt.mqtt import QoS as Mqtt3QoS
+    from awsiot import mqtt_connection_builder
     
 except ImportError:
     raise ImportError("AWS IoT SDK not available. Install with: pip install awsiotsdk>=1.21.0")

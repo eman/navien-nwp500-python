@@ -4,14 +4,15 @@ Main client for NaviLink API interactions.
 
 import asyncio
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
+
 import aiohttp
 
 from .auth import NaviLinkAuth
-from .device import NaviLinkDevice  
 from .config import NaviLinkConfig
-from .exceptions import CommunicationError, APIError, AuthenticationError
-from .models import UserInfo, DeviceInfo, TOUInfo
+from .device import NaviLinkDevice
+from .exceptions import APIError, AuthenticationError, CommunicationError
+from .models import DeviceInfo, TOUInfo, UserInfo
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +56,10 @@ class NaviLinkClient:
         
         # Configure logging
         log_level = getattr(logging, self.config.log_level.value, logging.INFO)
-        logging.getLogger('navilink').setLevel(log_level)
+        logging.getLogger('navien_nwp500').setLevel(log_level)
         
         if self.config.debug_mode:
-            logging.getLogger('navilink').setLevel(logging.DEBUG)
+            logging.getLogger('navien_nwp500').setLevel(logging.DEBUG)
         
     async def _ensure_session(self):
         """Ensure we have a valid session."""
@@ -469,7 +470,7 @@ class NaviLinkClient:
         # This will be implemented based on actual API response structure
         # For now, return a basic DeviceInfo with available data
         from .models import DeviceFeatures
-        
+
         # Create empty features for now - will be populated based on actual response
         features = DeviceFeatures(
             country_code=0,

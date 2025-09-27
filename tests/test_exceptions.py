@@ -3,22 +3,22 @@ Unit tests for custom exceptions.
 """
 import pytest
 
-from navilink.exceptions import (
-    NaviLinkError,
-    AuthenticationError,
-    DeviceError,
-    CommunicationError,
+from navien_nwp500.exceptions import (
     APIError,
-    WebSocketError,
-    MQTTError,
+    AuthenticationError,
+    CommunicationError,
+    DeviceError,
     DeviceOfflineError,
+    MQTTError,
+    NaviLinkError,
+    WebSocketError,
 )
 
 
 class TestExceptions:
     """Test cases for custom exceptions."""
     
-    def test_base_navilink_error(self):
+    def test_base_navien_nwp500_error(self):
         """Test base NaviLinkError."""
         error = NaviLinkError("Base error message")
         

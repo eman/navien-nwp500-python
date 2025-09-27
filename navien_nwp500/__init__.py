@@ -10,22 +10,22 @@ Primary Use Case: Long-term tank monitoring with DHW (Domestic Hot Water) charge
 Testing: Validated with Navien NWP500 Heat Pump Water Heater
 """
 
-from .client import NaviLinkClient
-from .device import NaviLinkDevice
 from .auth import NaviLinkAuth
-from .mqtt import NaviLinkMQTT
-from .config import NaviLinkConfig, ReconnectConfig, MQTTConfig, HTTPConfig
-from .models import DeviceInfo, DeviceStatus, DeviceFeatures
+from .client import NaviLinkClient
+from .config import HTTPConfig, MQTTConfig, NaviLinkConfig, ReconnectConfig
+from .device import NaviLinkDevice
 from .exceptions import (
-    NaviLinkError,
-    AuthenticationError,
-    DeviceError,
-    CommunicationError,
     APIError,
-    WebSocketError,
-    MQTTError,
+    AuthenticationError,
+    CommunicationError,
+    DeviceError,
     DeviceOfflineError,
+    MQTTError,
+    NaviLinkError,
+    WebSocketError,
 )
+from .models import DeviceFeatures, DeviceInfo, DeviceStatus
+from .mqtt import NaviLinkMQTT
 
 # Dynamic version from setuptools-scm
 try:

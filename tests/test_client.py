@@ -2,11 +2,12 @@
 Unit tests for NaviLinkClient functionality.
 """
 from unittest.mock import AsyncMock, MagicMock, patch
-import pytest
+
 import aiohttp
+import pytest
 
 from navilink import NaviLinkClient, NaviLinkConfig
-from navilink.exceptions import AuthenticationError, APIError, CommunicationError
+from navilink.exceptions import APIError, AuthenticationError, CommunicationError
 
 
 class TestNaviLinkClient:

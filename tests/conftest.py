@@ -1,13 +1,13 @@
 """
-Pytest configuration and fixtures for the navilink test suite.
+Pytest configuration and fixtures for the navien_nwp500 test suite.
 """
 import asyncio
+from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock
-from typing import Dict, Any
 
 import pytest
 
-from navien_nwp500 import NaviLinkConfig, NaviLinkClient, NaviLinkDevice
+from navien_nwp500 import NaviLinkClient, NaviLinkConfig, NaviLinkDevice
 from navien_nwp500.models import DeviceInfo, DeviceStatus
 
 

@@ -12,7 +12,7 @@ def test_import():
 
 def test_version():
     """Test version information is available."""
-    from navien_nwp500 import __version__, __author__
+    from navien_nwp500 import __author__, __version__
     assert isinstance(__version__, str)
     assert isinstance(__author__, str)
     assert len(__version__) > 0
@@ -22,16 +22,16 @@ def test_version():
 def test_exceptions_import():
     """Test that all exceptions can be imported."""
     from navien_nwp500 import (
-        NaviLinkError,
-        AuthenticationError,
-        DeviceError,
-        CommunicationError,
         APIError,
-        WebSocketError,
-        MQTTError,
+        AuthenticationError,
+        CommunicationError,
+        DeviceError,
         DeviceOfflineError,
+        MQTTError,
+        NaviLinkError,
+        WebSocketError,
     )
-    
+
     # Test basic exception hierarchy
     assert issubclass(AuthenticationError, NaviLinkError)
     assert issubclass(DeviceError, NaviLinkError)
@@ -41,7 +41,7 @@ def test_exceptions_import():
 
 def test_config_creation():
     """Test basic config creation."""
-    from navien_nwp500.config import NaviLinkConfig, LogLevel
+    from navien_nwp500.config import LogLevel, NaviLinkConfig
     
     config = NaviLinkConfig(
         email="test@example.com",

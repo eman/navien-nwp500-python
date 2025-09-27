@@ -4,10 +4,10 @@ Utility functions for the NaviLink library.
 
 import hashlib
 import hmac
+import logging
 import urllib.parse
 from datetime import datetime
-from typing import Dict, Any, Optional
-import logging
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ def create_websocket_url(
     """
     import urllib.parse
     from datetime import datetime
-    
+
     # For AWS IoT WebSocket, we need to use a different approach
     # Based on AWS IoT WebSocket connection format
     
@@ -182,6 +182,7 @@ def validate_mac_address(mac_address: str) -> bool:
         True if valid MAC address format
     """
     import re
+
     # Accept formats: 04:78:63:32:fc:a0 or 04786332fca0
     pattern = r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$|^[0-9A-Fa-f]{12}$'
     return bool(re.match(pattern, mac_address))

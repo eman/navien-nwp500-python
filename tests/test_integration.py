@@ -31,8 +31,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from navilink import NaviLinkClient, NaviLinkConfig, NaviLinkDevice
-from navilink.exceptions import NaviLinkError
 from navilink.config import ReconnectConfig
+from navilink.exceptions import NaviLinkError
+
 
 class ProductionIntegrationTest:
     """Production integration test for NaviLink library."""

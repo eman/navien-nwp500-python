@@ -3,8 +3,8 @@ Unit tests for data models and parsing functionality.
 """
 import pytest
 
-from navilink.models import DeviceInfo, DeviceStatus, DeviceFeatures
 from navilink.exceptions import NaviLinkError
+from navilink.models import DeviceFeatures, DeviceInfo, DeviceStatus
 
 
 class TestDeviceInfo:

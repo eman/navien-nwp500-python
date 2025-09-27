@@ -39,26 +39,26 @@ jobs:
     - name: Lint with flake8
       run: |
         # Stop the build if there are Python syntax errors or undefined names
-        flake8 navilink --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 navien_nwp500 --count --select=E9,F63,F7,F82 --show-source --statistics
         # Exit-zero treats all errors as warnings. Line length is handled by black
-        flake8 navilink --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+        flake8 navien_nwp500 --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
 
     - name: Format check with black
       run: |
-        black --check navilink tests
+        black --check navien_nwp500 tests
 
     - name: Import sort check with isort
       run: |
-        isort --check-only navilink tests
+        isort --check-only navien_nwp500 tests
 
     - name: Type check with mypy
       run: |
-        mypy navilink
+        mypy navien_nwp500
       continue-on-error: true  # MyPy can be strict, don't fail CI initially
 
     - name: Test with pytest
       run: |
-        pytest tests/ -v --cov=navilink --cov-report=xml --cov-report=term-missing
+        pytest tests/ -v --cov=navien_nwp500 --cov-report=xml --cov-report=term-missing
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3

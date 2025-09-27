@@ -5,11 +5,12 @@ Authentication handling for NaviLink service.
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 import aiohttp
 
 from .config import NaviLinkConfig
-from .exceptions import AuthenticationError, InvalidCredentialsError, APIError
+from .exceptions import APIError, AuthenticationError, InvalidCredentialsError
 from .models import UserInfo
 
 logger = logging.getLogger(__name__)

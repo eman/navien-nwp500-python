@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from navilink.config import NaviLinkConfig, ReconnectConfig, MQTTConfig, HTTPConfig
+from navilink.config import HTTPConfig, MQTTConfig, NaviLinkConfig, ReconnectConfig
 from navilink.exceptions import NaviLinkError
 
 
