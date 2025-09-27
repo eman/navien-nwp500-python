@@ -5,7 +5,7 @@ NaviLink device representation and control.
 import asyncio
 import json
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 import aiohttp
 
@@ -13,6 +13,9 @@ from .exceptions import CommunicationError, DeviceError
 from .models import DeviceInfo, DeviceStatus, EnergyUsage, Reservation
 from .mqtt import NaviLinkMQTT
 from .utils import normalize_mac_address, validate_mac_address
+
+if TYPE_CHECKING:
+    from .client import NaviLinkClient
 
 logger = logging.getLogger(__name__)
 
