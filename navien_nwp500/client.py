@@ -55,7 +55,10 @@ class NaviLinkClient:
         self._devices: List[NaviLinkDevice] = []
 
         # Configure logging
-        log_level = getattr(logging, self.config.log_level.value, logging.INFO)
+        if hasattr(self.config.log_level, "value"):
+            log_level = getattr(logging, self.config.log_level.value, logging.INFO)
+        else:
+            log_level = getattr(logging, str(self.config.log_level), logging.INFO)
         logging.getLogger("navien_nwp500").setLevel(log_level)
 
         if self.config.debug_mode:
