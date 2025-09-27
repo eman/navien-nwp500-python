@@ -75,12 +75,23 @@ export NAVILINK_EMAIL="your-email@example.com"
 export NAVILINK_PASSWORD="your-password"
 ```
 
+## Data Schema and Field Definitions
+
+For detailed information about all available data fields, their units, ranges, and meanings, see the comprehensive [Device Data Schema documentation](docs/DEVICE_DATA_SCHEMA.md).
+
+Key measurement insights:
+- **DHW Charge Percent**: Tank thermal energy level (0-100%), independent of temperature
+- **Temperature Fields**: Most sensor readings are in 0.1°F units (divide by 10 for actual °F)  
+- **Power Consumption**: Heat pump operation shows ~430-450W, resistance heating shows ~4000W+
+- **Operation Modes**: Code 32 = Heat Pump mode, various codes for different operational states
+
 ## Examples
 
 See the `examples/` directory for detailed usage examples:
 
 - `basic_usage.py` - Basic device interaction
-- `production_example.py` - Production-ready usage patterns
+- `production_example.py` - Production-ready usage patterns  
+- `tank_monitoring_hybrid.py` - Comprehensive tank monitoring with CSV logging
 - `real_time_monitoring.py` - Real-time monitoring (when WebSocket is resolved)
 
 ## API Reference
