@@ -49,7 +49,8 @@ jobs:
 
     - name: Import sort check with isort
       run: |
-        isort --check-only navien_nwp500 tests --skip=navien_nwp500/_version.py
+        # Check all files except _version.py using find/exclude approach
+        isort --check-only --diff navien_nwp500 tests --extend-skip=navien_nwp500/_version.py
 
     - name: Type check with mypy
       run: |
