@@ -208,9 +208,12 @@ __marimo__/
 
 # NaviLink specific
 credentials.py
+.env
 tank_data*.csv
 *_data*.csv
 debug_*.log
 *.har
 *_output.txt
 test_output_*.json
+tank_monitoring_*.log
+*_enhanced.log

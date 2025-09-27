@@ -83,10 +83,13 @@ class NaviLinkConfig:
     debug_mode: bool = False
     
     @classmethod
-    def from_environment(cls) -> 'NaviLinkConfig':
+    def from_environment(cls, env_file: Optional[str] = None) -> 'NaviLinkConfig':
         """
         Create configuration from environment variables.
         
+        Args:
+            env_file: Optional path to .env file to load first
+            
         Supported environment variables:
         - NAVILINK_EMAIL: User email for authentication
         - NAVILINK_PASSWORD: User password for authentication
@@ -94,6 +97,15 @@ class NaviLinkConfig:
         - NAVILINK_LOG_LEVEL: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         - NAVILINK_MQTT_PROTOCOL: MQTT protocol version (MQTT3, MQTT5)
         """
+        # Load .env file if provided or if .env exists
+        if env_file or os.path.exists(".env"):
+            env_path = env_file or ".env"
+            try:
+                cls._load_env_file(env_path)
+            except Exception as e:
+                # Don't fail if .env file is invalid, just continue with system env vars
+                pass
+        
         config = cls()
         
         # Authentication
@@ -119,6 +131,22 @@ class NaviLinkConfig:
             config.mqtt.protocol_version = MQTTProtocolVersion.MQTT3
         
         return config
+    
+    @staticmethod
+    def _load_env_file(env_file: str) -> None:
+        """Load environment variables from a .env file."""
+        try:
+            with open(env_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        key = key.strip()
+                        value = value.strip().strip('"').strip("'")
+                        if key and not os.getenv(key):  # Don't override existing env vars
+                            os.environ[key] = value
+        except FileNotFoundError:
+            pass  # File doesn't exist, that's okay
     
     def validate(self) -> None:
         """

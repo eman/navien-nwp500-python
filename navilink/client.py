@@ -164,8 +164,13 @@ class NaviLinkClient:
             raise AuthenticationError("Must authenticate before getting devices")
 
         try:
-            async with self._session.get(
+            async with self._session.post(
                 f"{self.config.base_url}/device/list",
+                json={
+                    "offset": 0,
+                    "count": 20,
+                    "userId": self._auth.user_info.email if self._auth.user_info else ""
+                },
                 headers=self._auth.get_auth_headers()
             ) as response:
                 if response.status == 403:
@@ -177,13 +182,27 @@ class NaviLinkClient:
                     )
 
                 data = await response.json()
-                devices_data = data.get('devices', [])
+                logger.debug(f"Device list response: {data}")
+                
+                # Handle NaviLink API response structure
+                if data.get('code') == 200 and 'data' in data:
+                    devices_data = data['data']
+                    # Extract deviceInfo from each device entry
+                    devices_data = [
+                        {**device.get('deviceInfo', {}), 'location': device.get('location', {})}
+                        for device in devices_data
+                    ]
+                else:
+                    devices_data = data.get('devices', [])
+                
+                if not devices_data:
+                    logger.warning(f"No devices found in response. Full response keys: {list(data.keys())}")
 
                 self._devices = [
                     NaviLinkDevice(
                         client=self,
                         device_data=device_data,
-                        config=self.config
+                        session=self._session
                     )
                     for device_data in devices_data
                 ]

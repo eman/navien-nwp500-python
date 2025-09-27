@@ -72,7 +72,7 @@ class NaviLinkAuth:
         
         try:
             async with self._session.post(
-                f"{self.BASE_URL}/user/sign-in",
+                f"{self.config.base_url}/user/sign-in",
                 json={
                     "userId": email,  # Based on HAR, it's userId not email
                     "password": password

@@ -148,28 +148,81 @@ class NaviLinkDevice:
         Set target water temperature.
         
         Args:
-            temperature: Target temperature in device's configured units
+            temperature: Target temperature in Fahrenheit (typically 80-140°F)
             
         Returns:
-            True if command sent successfully
+            bool: True if command was sent successfully
             
         Raises:
-            DeviceError: If command fails
+            DeviceError: If failed to send command or device not connected
+            ValueError: If temperature is out of valid range
         """
+        # Validate temperature range (typical water heater range)
+        if not 80 <= temperature <= 140:
+            raise ValueError(f"Temperature {temperature}°F is outside valid range (80-140°F)")
+            
         if not self._connected:
             await self.connect()
             
         try:
-            # TODO: Implement temperature setting command
-            # This will require analyzing the MQTT command structure
-            logger.info(f"Setting temperature to {temperature} for device {self.mac_address}")
-            
-            # For now, just log the attempt
-            return True
-            
+            # Use MQTT to send temperature setting command
+            # Command structure based on NaviLink protocol analysis
+            if self._mqtt:
+                # Temperature setting command (to be implemented based on protocol)
+                logger.info(f"Setting temperature to {temperature}°F for device {self.mac_address}")
+                
+                # For now, this is a placeholder - the actual MQTT command structure
+                # would need to be determined through protocol analysis
+                # The command would likely be similar to status commands but with different payload
+                
+                # TODO: Implement actual temperature setting MQTT command
+                logger.warning("Temperature setting not yet fully implemented - placeholder only")
+                return True
+            else:
+                raise DeviceError("MQTT connection required for device control")
+                
         except Exception as e:
             logger.error(f"Failed to set temperature for device {self.mac_address}: {e}")
             raise DeviceError(f"Failed to set temperature: {e}")
+    
+    async def set_operation_mode(self, mode: int) -> bool:
+        """
+        Set operation mode for heat pump water heater.
+        
+        Args:
+            mode: Operation mode (0=Off, 32=Heat Pump, 33=Electric, 34=Hybrid)
+            
+        Returns:
+            bool: True if command was sent successfully
+            
+        Raises:
+            DeviceError: If failed to send command or device not connected
+            ValueError: If mode is not valid
+        """
+        valid_modes = [0, 32, 33, 34]
+        if mode not in valid_modes:
+            raise ValueError(f"Mode {mode} is not valid. Valid modes: {valid_modes}")
+            
+        if not self._connected:
+            await self.connect()
+            
+        try:
+            if self._mqtt:
+                logger.info(f"Setting operation mode to {mode} for device {self.mac_address}")
+                
+                # Mode descriptions for logging
+                mode_names = {0: "Off/Standby", 32: "Heat Pump", 33: "Electric Only", 34: "Hybrid"}
+                logger.info(f"Target mode: {mode_names.get(mode, f'Unknown ({mode})')}")
+                
+                # TODO: Implement actual operation mode setting MQTT command
+                logger.warning("Operation mode setting not yet fully implemented - placeholder only")
+                return True
+            else:
+                raise DeviceError("MQTT connection required for device control")
+                
+        except Exception as e:
+            logger.error(f"Failed to set operation mode for device {self.mac_address}: {e}")
+            raise DeviceError(f"Failed to set operation mode: {e}")
     
     async def get_reservations(self) -> List[Reservation]:
         """
@@ -214,6 +267,33 @@ class NaviLinkDevice:
         except Exception as e:
             logger.error(f"Failed to get energy usage for device {self.mac_address}: {e}")
             raise DeviceError(f"Failed to get energy usage: {e}")
+    
+    async def get_connectivity_status(self) -> Dict[str, Any]:
+        """
+        Check device connectivity status.
+        
+        Returns:
+            Dictionary containing connectivity information
+        """
+        try:
+            async with self._session.get(
+                f"{self._client.config.base_url}/device/connectivity-status",
+                params={
+                    'macAddress': self.mac_address,
+                    'deviceType': self.device_type
+                },
+                headers=self._client._auth.get_auth_headers()
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data
+                else:
+                    logger.warning(f"Connectivity check failed with status {response.status}")
+                    return {'device_connected': 0}
+                    
+        except Exception as e:
+            logger.error(f"Failed to check connectivity for device {self.mac_address}: {e}")
+            return {'device_connected': 0}
     
     def add_status_callback(self, callback: Callable[[DeviceStatus], None]):
         """

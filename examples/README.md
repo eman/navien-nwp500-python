@@ -1,164 +1,121 @@
 # NaviLink Examples
 
-This directory contains examples demonstrating various usage patterns of the NaviLink Python library.
+This directory contains example scripts demonstrating how to use the NaviLink Python library.
 
-## Prerequisites
+## Configuration
 
-Before running any examples, ensure you have:
+All examples use a standardized configuration approach:
 
-1. **Installed the library**:
+1. **Copy the template**: `cp .env.template .env`
+2. **Edit .env** with your actual credentials:
    ```bash
-   pip install navilink
+   NAVILINK_EMAIL=your_email@example.com
+   NAVILINK_PASSWORD=your_password
+   NAVILINK_POLLING_INTERVAL=300  # Optional: 5 minutes default
    ```
+3. **Run examples** - they will automatically load from .env
 
-2. **Set up credentials** (choose one method):
-
-   **Option A: Environment Variables (Recommended)**
-   ```bash
-   export NAVILINK_EMAIL="your@email.com"
-   export NAVILINK_PASSWORD="your_password"
-   export NAVILINK_LOG_LEVEL="INFO"
-   ```
-
-   **Option B: Command Line Arguments**
-   ```bash
-   python example.py --email "your@email.com" --password "password"
-   ```
-
-   **Option C: Credentials File**
-   ```bash
-   cp credentials_template.py credentials.py
-   # Edit credentials.py with your actual credentials
-   ```
+Alternatively, you can:
+- Set environment variables: `export NAVILINK_EMAIL="..." NAVILINK_PASSWORD="..."`
+- Use command line arguments (see `--help` for each example)
 
 ## Examples
 
-### [basic_usage.py](basic_usage.py) - Getting Started ⭐
+### basic_usage.py
+**Perfect for getting started**
 
-**Best for**: First-time users learning the library basics
-
-```bash
-python basic_usage.py
-```
-
-**Features**:
-- Simple authentication
-- Device discovery
-- Single status request via MQTT
-- Basic error handling
-- Operation mode interpretation
-
-**Output Example**:
-```
-🔐 Authenticating...
-✅ Authentication successful
-📱 Getting device list...
-🏠 Found device: NWP500
-📊 Status received:
-   Tank Charge: 95%
-   Temperature: 121°F
-   System Status: Heat Pump Active
-```
-
-### [tank_monitoring_production.py](tank_monitoring_production.py) - Production Monitoring 🏭
-
-**Best for**: Continuous monitoring and data logging in production environments
+Demonstrates basic authentication, device discovery, and status retrieval.
+- Shows how to connect to devices
+- Retrieves device information and status
+- Checks device connectivity
+- Explains key metrics like DHW charge percentage and operation modes
 
 ```bash
-python tank_monitoring_production.py --interval 300 --output tank_data.csv
+python examples/basic_usage.py
+# or with debug logging
+python examples/basic_usage.py --debug
 ```
 
-**Features**:
-- Enterprise configuration management
-- Continuous MQTT monitoring with 5-minute intervals
-- CSV data logging for analysis
-- Connection recovery with exponential backoff
-- Production-grade error handling and logging
-- Graceful shutdown with signal handling
-- Connection stability monitoring
+### tank_monitoring_production.py
+**Production-ready monitoring for long-term data collection**
 
-**Output Example**:
-```
-📊 Tank: 99% | Temp: 121°F | Mode: 32 | Power: 466W
-📊 Tank: 100% | Temp: 122°F | Mode: 0 | Power: 1W
-⚠️ No updates received in 10 minutes, connection may be stale
-```
+Designed for continuous monitoring of heat pump water heater operations.
+- Monitors DHW (Domestic Hot Water) charge levels
+- Tracks operation modes and power consumption
+- Logs data to CSV files for analysis
+- Robust error handling and reconnection
+- Configurable polling intervals
 
-**CSV Output**:
-```csv
-timestamp,dhw_charge_percent,operation_mode,dhw_temperature,current_inst_power
-2024-01-01T10:30:00,99,32,121,466
-2024-01-01T10:35:00,100,0,122,1
+```bash
+# Standard 5-minute monitoring
+python examples/tank_monitoring_production.py
+
+# Custom intervals and duration
+python examples/tank_monitoring_production.py --interval 60 --duration 120
+
+# Monitor for 24 hours with 10-minute intervals
+python examples/tank_monitoring_production.py --interval 600 --duration 1440
 ```
 
-**⚠️ Never commit credentials.py to version control!**
+## Key Concepts
+
+### DHW Charge Percentage
+The most important metric for tank monitoring. Represents the thermal energy level in the hot water tank as a percentage of maximum capacity (0-100%).
+
+### Operation Modes (Heat Pump Water Heater)
+- **Mode 0**: Standby/Off (1W power consumption)
+- **Mode 32**: Heat Pump Active (430-470W power consumption) 
+- **Mode 33**: Electric Elements Only (4000W+ power consumption)
+- **Mode 34**: Hybrid Mode (mixed power consumption)
+
+### Temperature Sensors
+- **dhw_temperature**: Actual hot water output temperature (°F)
+- **dhw_temperature_setting**: Target temperature setpoint (°F)
+- **tank_upper_temperature**: Cold water inlet sensor (0.1°F units)
+- **tank_lower_temperature**: Heat pump ambient sensor (0.1°F units)
+
+## Troubleshooting
+
+### Authentication Issues
+- Verify credentials in .env file
+- Check that NAVILINK_EMAIL and NAVILINK_PASSWORD are set correctly
+- Try command line arguments to test: `--email user@example.com --password yourpass`
+
+### Device Offline
+- Check device connectivity with `basic_usage.py` first
+- Ensure device is powered on and connected to WiFi
+- MQTT monitoring requires device to be online
+
+### Empty CSV Files
+- Device must be online for data collection
+- Check connectivity status before starting monitoring
+- Enable debug mode to see detailed connection logs
 
 ## Data Analysis
 
-### Understanding CSV Output
-
-The production monitoring script outputs data with proper field interpretations:
-
-- **`dhw_charge_percent`**: Tank thermal energy level (0-100%) - PRIMARY TANK METRIC
-- **`dhw_temperature`**: Hot water output temperature (°F) - ACTUAL hot water temp
-- **`tank_upper_temp`**: Cold water inlet temperature (°F) - NOT tank temp!
-- **`tank_lower_temp`**: Heat pump ambient temperature (°F) - NOT tank temp!
-- **`operation_mode`**: Heat pump mode (0=Standby, 32=Heat Pump, 33=Electric)
-- **`current_inst_power`**: Power consumption (W) - Key efficiency indicator
-
-### Critical Production Insights
-
-1. **Tank Monitoring**: Use `dhw_charge_percent` (not temperature sensors) for tank state
-2. **Mode Detection**: Trust power consumption over status codes for actual operation  
-3. **Temperature Reality**: "Tank" sensors are cold water system sensors (~60°F), not hot water
-4. **Efficiency**: Heat pump mode (32) uses 430-470W vs electric backup 4000W+
-
-## Sample Data Analysis
+The production monitoring example generates CSV files perfect for analysis:
 
 ```python
 import pandas as pd
-import matplotlib.pyplot as plt
+import matplotlib.pyplot.plt
 
-# Load and analyze data
-df = pd.read_csv('tank_data.csv')
+# Load and analyze tank data
+df = pd.read_csv('tank_data_production.csv')
 df['timestamp'] = pd.to_datetime(df['timestamp'])
 
-# Plot tank charge over time
+# Plot DHW charge over time
 plt.figure(figsize=(12, 6))
 plt.plot(df['timestamp'], df['dhw_charge_percent'])
-plt.title('Tank Thermal Energy Level Over Time')
-plt.ylabel('DHW Charge (%)')
+plt.title('DHW Tank Charge Level Over Time')
+plt.ylabel('Charge Percentage (%)')
 plt.xlabel('Time')
 plt.grid(True)
 plt.show()
-
-# Analyze power consumption patterns
-power_modes = df.groupby('operation_mode')['current_inst_power'].agg(['mean', 'count'])
-print("Power consumption by operation mode:")
-print(power_modes)
 ```
 
-## Debugging
+## Additional Resources
 
-### Debug Scripts
-The `debug/` directory contains development debugging tools:
-- `debug_aws_creds.py` - AWS IoT credential debugging
-- `debug_websocket.py` - WebSocket connection debugging
-
-### Connectivity Issues
-1. Check device online status first
-2. Verify credentials and authentication
-3. Enable debug logging: `--debug` or `NAVILINK_DEBUG=true`
-4. Check WiFi signal strength in device data
-
-### Common Issues
-- **Empty CSV**: Device offline or MQTT not responding
-- **403 Errors**: Authentication expired or invalid
-- **Connection Timeouts**: Check device connectivity status first
-
-## Support
-
-For issues or questions:
-1. Check the main project README.md
-2. Review production validation in `.github/copilot-instructions.md`  
-3. Examine HAR files in `reference/` directory for API details
+- See `docs/` directory for complete API documentation
+- `docs/DEVICE_DATA_SCHEMA.md` - Complete field definitions and units
+- `docs/FIELD_INSIGHTS.md` - Production data analysis insights
+- GitHub Issues for bug reports and feature requests

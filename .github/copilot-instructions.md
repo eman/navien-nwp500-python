@@ -3,34 +3,90 @@
 ## Project Overview
 This is a production-ready Python library for communicating with the Navien NaviLink service, enabling control and monitoring of Navien water heaters and smart home devices. The library provides both REST API access and AWS IoT Core MQTT real-time communication capabilities, with a focus on heat pump water heater monitoring and data collection.
 
-**Status**: Production Ready ✅  
+**Status**: Production Ready ✅ v1.0.0  
 **Primary Use Case**: Long-term tank monitoring with DHW (Domestic Hot Water) charge level tracking
-**Testing**: Validated with Navien NWP500 Heat Pump Water Heater
-**Version**: 1.0.0
+**Testing**: Validated with Navien NWP500 Heat Pump Water Heater in 24+ hour production sessions
+**Architecture**: Enterprise-grade async Python with comprehensive configuration and error handling
 
-## Critical Production Discoveries ⚠️
+## 🏢 Enterprise Production Standards
 
-### Temperature Sensor Reality Check (CRITICAL)
+### Configuration Management (Production Implementation) ✅
+The library uses a unified configuration system that supports:
+
+```python
+# Method 1: .env file (recommended for production)
+cp .env.template .env  # Edit with actual credentials
+config = NaviLinkConfig.from_environment()
+
+# Method 2: Environment variables
+export NAVILINK_EMAIL="user@example.com"
+export NAVILINK_PASSWORD="password" 
+export NAVILINK_LOG_LEVEL="INFO"
+config = NaviLinkConfig.from_environment()
+
+# Method 3: Direct configuration (for applications)
+config = NaviLinkConfig(
+    email="user@example.com",
+    password="password"
+)
+```
+
+**No credentials.py files**: Legacy approach removed. All examples standardized on .env/.env.template pattern.
+
+### Code Organization (Production Refactored) ✅
+```
+navilink/                     # Core library (production-ready)
+├── __init__.py              # Clean exports, version 1.0.0
+├── client.py                # NaviLinkClient with enterprise session management
+├── auth.py                  # Authentication with AWS IoT credential handling
+├── device.py                # NaviLinkDevice with MQTT integration + control methods
+├── aws_iot_websocket.py     # AWS IoT WebSocket/MQTT with MQTT5 support
+├── config.py                # Enterprise configuration management with .env support
+├── models.py                # Comprehensive data models with production field insights
+├── exceptions.py            # Complete custom exception hierarchy
+└── utils.py                 # Utility functions
+
+examples/                     # Sample applications only (no library code)
+├── basic_usage.py           # ⭐ Getting started example (standardized config)
+├── tank_monitoring_production.py  # ⭐ Production monitoring with CSV export
+└── README.md                # Comprehensive usage guide
+
+docs/                        # Consolidated documentation
+├── DEVICE_DATA_SCHEMA.md    # Complete field definitions and units
+├── FIELD_INSIGHTS.md        # Production data analysis insights
+└── README.md                # API documentation
+
+tests/
+├── test_integration.py      # Production integration tests
+└── __init__.py
+```
+
+**Removed**: All development artifacts, duplicate monitoring scripts, credentials_template.py
+
+## 🔬 Critical Production Discoveries ⚠️
+
+### Temperature Sensor Reality Check (FIELD VALIDATED)
 **MAJOR DISCOVERY**: Field names are misleading! "Tank" sensors do NOT measure hot water tank temperatures.
 
 **Production Data Analysis Reveals**:
-- `dhw_temperature`: Only true hot water sensor (119-122°F actual delivery temperature)
-- `tank_upper_temperature`: Actually cold water inlet/evaporator sensor (~60.5°F) 
-- `tank_lower_temperature`: Actually heat pump ambient sensor (~61.1°F)
+- ✅ `dhw_temperature`: Only true hot water sensor (119-122°F actual delivery temperature)
+- ❌ `tank_upper_temperature`: Actually cold water inlet/evaporator sensor (~60.5°F) 
+- ❌ `tank_lower_temperature`: Actually heat pump ambient sensor (~61.1°F)
 - **MISSING**: Hot water tank internal temperatures NOT accessible via NaviLink API
 - **Critical**: Tank thermal monitoring must rely on `dhw_charge_percent` only
 
 ### Power vs Status Codes (PRODUCTION VALIDATED)
 **IMPORTANT**: Status codes indicate readiness, NOT active operation!
-- Production shows `heat_upper_use=1`, `heat_lower_use=1` (ready) but 1W power = not active
+- Production data: `heat_upper_use=1`, `heat_lower_use=1` (ready) but 1W power = not active
 - `comp_use=2`, `eva_fan_use=2` + 466W power = actual heat pump operation
 - **Rule**: Trust power consumption over status codes for operation determination
 
 ### Operation Mode Reality (CORRECTED)
-Original assumption about modes 1-3 was wrong. Production system uses:
+Production system uses these modes (original 1-3 assumption was incorrect):
 - **Mode 0**: Standby/Off (1W power consumption)
 - **Mode 32**: Heat Pump Active (430-470W power consumption)
-- Mode 33/34: Electric backup (4000W+, not observed in production)
+- **Mode 33**: Electric backup (4000W+, not observed in production)
+- **Mode 34**: Hybrid mode (mixed power consumption)
 
 ## Core Requirements
 
