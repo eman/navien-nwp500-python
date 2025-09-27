@@ -394,7 +394,7 @@ class NaviLinkDevice:
         if callback in self._status_callbacks:
             self._status_callbacks.remove(callback)
 
-    async def get_mqtt_connection(self, reconnect_config: Optional = None):
+    async def get_mqtt_connection(self, reconnect_config: Optional[ReconnectConfig] = None):
         """
         Get the MQTT connection for this device, creating it if needed.
 

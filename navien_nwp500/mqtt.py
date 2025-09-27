@@ -46,7 +46,7 @@ class NaviLinkMQTT:
         self,
         client: "NaviLinkClient",
         device: "NaviLinkDevice",
-        session: Optional = None,
+        session: Optional[aiohttp.ClientSession] = None,
         reconnect_config: Optional[ReconnectConfig] = None,
     ):
         """
