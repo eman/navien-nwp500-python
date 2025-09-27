@@ -332,7 +332,6 @@ class TankMonitor:
 
 
 async def main():
-    """Main function."""
     parser = argparse.ArgumentParser(description="Production NaviLink Tank Monitor")
     parser.add_argument("--email", help="NaviLink account email (overrides env)")
     parser.add_argument("--password", help="NaviLink account password (overrides env)")
@@ -364,16 +363,18 @@ async def main():
     # Create shutdown event for proper asyncio integration
     shutdown_event = asyncio.Event()
 
-    # Set up asyncio-compatible signal handling
-    def signal_handler():
+    # Set up hybrid signal handling (asyncio + traditional for immediate response)
+    def signal_handler(signum=None, frame=None):
         logger.info("🛑 Shutdown signal received...")
         shutdown_event.set()
+        # Critical: Immediately stop monitor loop for responsive shutdown
+        if monitor:
+            monitor.running = False
 
-    # Register signal handlers
-    if sys.platform != "win32":
-        loop = asyncio.get_running_loop()
-        loop.add_signal_handler(signal.SIGINT, signal_handler)
-        loop.add_signal_handler(signal.SIGTERM, signal_handler)
+    # Register signal handlers - use traditional approach for immediate response
+    # This works during blocking operations unlike asyncio signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     try:
         # Create configuration
@@ -405,7 +406,7 @@ async def main():
         try:
             await monitor.setup()
 
-            # Create monitoring task
+            # Create monitoring task so we can cancel it
             monitoring_task = asyncio.create_task(monitor.run_monitoring())
             shutdown_task = asyncio.create_task(shutdown_event.wait())
 
@@ -450,7 +451,20 @@ async def main():
             logger.error(f"❌ Monitoring session failed: {e}")
             return False
         finally:
-            await monitor.cleanup()
+            # Ensure monitoring task is cancelled
+            if (
+                "monitoring_task" in locals()
+                and monitoring_task
+                and not monitoring_task.done()
+            ):
+                monitoring_task.cancel()
+                try:
+                    await monitoring_task
+                except asyncio.CancelledError:
+                    pass
+
+            if monitor:
+                await monitor.cleanup()
 
     except KeyboardInterrupt:
         logger.info("🛑 Monitoring stopped by user")
