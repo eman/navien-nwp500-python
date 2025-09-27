@@ -8,28 +8,35 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import aiohttp
 
+from .config import NaviLinkConfig
 from .exceptions import AuthenticationError, InvalidCredentialsError, APIError
 from .models import UserInfo
 
 logger = logging.getLogger(__name__)
 
 class NaviLinkAuth:
-    """Handles authentication and token management for NaviLink service."""
+    """
+    Handles authentication and token management for NaviLink service.
     
-    BASE_URL = "https://nlus.naviensmartcontrol.com/api/v2.1"
+    Provides enterprise-grade session management with automatic token refresh
+    and comprehensive error handling.
+    """
     
-    def __init__(self, session: Optional[aiohttp.ClientSession] = None):
+    def __init__(self, session: aiohttp.ClientSession, config: NaviLinkConfig):
         """
         Initialize authentication handler.
         
         Args:
-            session: Optional aiohttp session to use for requests
+            session: aiohttp session to use for requests
+            config: NaviLink configuration object
         """
         self._session = session
-        self._owns_session = session is None
+        self.config = config
         self._user_info: Optional[UserInfo] = None
         self._credentials: Optional[Dict[str, str]] = None
         self._aws_credentials: Optional[Dict[str, str]] = None
+        self._auth_headers: Optional[Dict[str, str]] = None
+        self._authenticated_at: Optional[datetime] = None
         
     async def __aenter__(self):
         """Async context manager entry."""

@@ -3,9 +3,10 @@
 ## Project Overview
 This is a production-ready Python library for communicating with the Navien NaviLink service, enabling control and monitoring of Navien water heaters and smart home devices. The library provides both REST API access and AWS IoT Core MQTT real-time communication capabilities, with a focus on heat pump water heater monitoring and data collection.
 
-**Status**: Production Ready ✅
+**Status**: Production Ready ✅  
 **Primary Use Case**: Long-term tank monitoring with DHW (Domestic Hot Water) charge level tracking
 **Testing**: Validated with Navien NWP500 Heat Pump Water Heater
+**Version**: 1.0.0
 
 ## Critical Production Discoveries ⚠️
 
@@ -33,16 +34,61 @@ Original assumption about modes 1-3 was wrong. Production system uses:
 
 ## Core Requirements
 
-### 1. Library Structure
-- **Package Name**: `navilink` (lowercase)
-- **Main Module**: `navilink/__init__.py`
-- **Core Classes**: 
-  - `NaviLinkClient` - Main client for API interactions with session management
-  - `NaviLinkDevice` - Represents a connected device with MQTT capabilities
-  - `NaviLinkAuth` - Handles authentication and token management with AWS IoT credentials
-  - `AWSIoTWebSocket` - AWS IoT Core WebSocket/MQTT communication with MQTT5 support
+### 1. Library Structure (Production Refactored) ✅
+```
+navilink/
+├── __init__.py              # Main exports and version 1.0.0
+├── client.py                # NaviLinkClient with enterprise session management
+├── auth.py                  # Authentication with AWS IoT credential handling
+├── device.py                # NaviLinkDevice with MQTT integration
+├── aws_iot_websocket.py     # AWS IoT WebSocket/MQTT with MQTT5 support
+├── config.py                # Enterprise configuration management
+├── models.py                # Data models and status parsing
+├── exceptions.py            # Comprehensive custom exceptions
+└── utils.py                 # Utility functions
 
-### 2. API Endpoints (Validated Production)
+examples/
+├── tank_monitoring_production.py  # ⭐ Main production example
+├── basic_usage.py                 # Simple getting-started example
+├── credentials_template.py        # Template for development credentials
+├── debug/                         # Development debugging tools
+│   ├── debug_aws_creds.py
+│   └── debug_websocket.py
+└── README.md                      # Comprehensive usage guide
+
+tests/
+├── __init__.py
+├── test_integration.py            # Production integration tests
+└── [legacy test files moved here]
+
+docs/
+├── DEVICE_DATA_SCHEMA.md          # Complete field definitions and units
+├── FIELD_INSIGHTS.md              # Production data analysis insights
+└── README.md                      # API documentation
+```
+
+### 2. Enterprise Configuration System ✅
+```python
+from navilink import NaviLinkConfig, NaviLinkClient
+
+# Method 1: Environment variables (recommended for production)
+export NAVILINK_EMAIL="user@example.com"
+export NAVILINK_PASSWORD="password"
+export NAVILINK_LOG_LEVEL="INFO"
+export NAVILINK_MQTT_PROTOCOL="MQTT3"
+config = NaviLinkConfig.from_environment()
+
+# Method 2: Direct configuration
+config = NaviLinkConfig(
+    email="user@example.com",
+    password="password"
+)
+
+# Use with client
+client = NaviLinkClient(config=config)
+```
+
+### 3. API Endpoints (Validated Production)
 Base URL: `https://nlus.naviensmartcontrol.com/api/v2.1/`
 
 #### Authentication ✅
@@ -53,15 +99,16 @@ Base URL: `https://nlus.naviensmartcontrol.com/api/v2.1/`
   - **Critical**: Must include proper session management for subsequent calls
 
 #### Device Management ✅
-- **GET** `/device/list` - Get list of user's devices
+- **POST** `/device/list` - Get list of user's devices (corrected from GET)
   - **Authentication**: Requires session from sign-in
+  - **Body**: `{"offset": 0, "count": 20, "userId": "email"}`
   - **Returns**: Array of devices with `device_type: 52` for water heaters
-- **GET** `/device/info` - Get detailed device information
-  - **Query Params**: `additionalValue`, `controllerId`, `macAddress`, `userId`, `userType`
+- **POST** `/device/info` - Get detailed device information (corrected from GET)
+  - **Body Params**: `macAddress`, `additionalValue`, `userId`
   - **Returns**: Comprehensive device features and configuration
 - **GET** `/device/firmware/info` - Get device firmware information
 - **GET** `/device/tou` - Get Time of Use (TOU) information
-- **GET** `/device/connectivity-status` - **NEW**: Check if device is online for MQTT
+- **GET** `/device/connectivity-status` - Check if device is online for MQTT
 
 #### App Management ✅
 - **POST** `/app/update-push-token` - Update push notification token

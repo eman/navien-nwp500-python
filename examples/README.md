@@ -1,140 +1,164 @@
 # NaviLink Examples
 
-This directory contains example scripts demonstrating how to use the NaviLink Python library.
+This directory contains examples demonstrating various usage patterns of the NaviLink Python library.
 
-## DHW Charge Level Monitoring
+## Prerequisites
 
-### 📊 Current Status: Device Connection Issues
+Before running any examples, ensure you have:
 
-**Important Note:** The Navien NWP500 device is currently not responding to MQTT commands. This is common and can be resolved with the troubleshooting steps below.
+1. **Installed the library**:
+   ```bash
+   pip install navilink
+   ```
 
-### 🔧 **Troubleshooting Your Device:**
+2. **Set up credentials** (choose one method):
 
-**Try these steps to get your NWP500 responding:**
+   **Option A: Environment Variables (Recommended)**
+   ```bash
+   export NAVILINK_EMAIL="your@email.com"
+   export NAVILINK_PASSWORD="your_password"
+   export NAVILINK_LOG_LEVEL="INFO"
+   ```
 
-1. **🚿 Activate the Device:**
-   - Turn on hot water at your location
-   - Run a hot water tap for 2-3 minutes
-   - This may wake the device from sleep mode
+   **Option B: Command Line Arguments**
+   ```bash
+   python example.py --email "your@email.com" --password "password"
+   ```
 
-2. **📱 Check NaviLink Mobile App:**
-   - Open the official NaviLink app
-   - Verify your device shows as "Online"
-   - Try controlling it from the app first
+   **Option C: Credentials File**
+   ```bash
+   cp credentials_template.py credentials.py
+   # Edit credentials.py with your actual credentials
+   ```
 
-3. **🔌 Check Physical Device:**
-   - Look at the WiFi/status LED on your NWP500
-   - Ensure it shows connected (not blinking)
-   - Check device display for error codes
+## Examples
 
-4. **🔄 Network Reset:**
-   - Power cycle your NWP500 (turn off/on)
-   - Check your WiFi router connectivity
-   - Consider re-pairing device if needed
+### [basic_usage.py](basic_usage.py) - Getting Started ⭐
 
-### 📊 `dhw_charge_logger_robust.py` - Robust Data Logger
+**Best for**: First-time users learning the library basics
 
-**This version handles offline devices and logs connection attempts:**
-
-**Features:**
-- Aggressive retry logic for offline devices
-- Logs connection attempts even when device doesn't respond
-- Tracks device connectivity status over time
-- Provides detailed diagnostics about device state
-
-**Usage:**
 ```bash
-# Check device every 2 minutes (120 seconds)
-python dhw_charge_logger_robust.py your@email.com your_password 120
-
-# More frequent checking (every minute)
-python dhw_charge_logger_robust.py your@email.com your_password 60
+python basic_usage.py
 ```
 
-**Output Files:**
-- `dhw_charge_data_robust.csv` - Connection attempts and status
-- `dhw_logger_robust.log` - Detailed diagnostic logs
+**Features**:
+- Simple authentication
+- Device discovery
+- Single status request via MQTT
+- Basic error handling
+- Operation mode interpretation
 
-### 📈 `dhw_data_plotter.py` - Data Visualization
+**Output Example**:
+```
+🔐 Authenticating...
+✅ Authentication successful
+📱 Getting device list...
+🏠 Found device: NWP500
+📊 Status received:
+   Tank Charge: 95%
+   Temperature: 121°F
+   System Status: Heat Pump Active
+```
 
-Creates comprehensive plots and analysis from logged data (when available).
+### [tank_monitoring_production.py](tank_monitoring_production.py) - Production Monitoring 🏭
 
-### 🧪 **Diagnostic Tools:**
+**Best for**: Continuous monitoring and data logging in production environments
 
-**Test Device Responsiveness:**
 ```bash
-python test_device_wake_up.py your@email.com your_password
+python tank_monitoring_production.py --interval 300 --output tank_data.csv
 ```
 
-**Analyze Device Data Structure:**
-```bash
-python test_device_info_detailed.py your@email.com your_password
+**Features**:
+- Enterprise configuration management
+- Continuous MQTT monitoring with 5-minute intervals
+- CSV data logging for analysis
+- Connection recovery with exponential backoff
+- Production-grade error handling and logging
+- Graceful shutdown with signal handling
+- Connection stability monitoring
+
+**Output Example**:
+```
+📊 Tank: 99% | Temp: 121°F | Mode: 32 | Power: 466W
+📊 Tank: 100% | Temp: 122°F | Mode: 0 | Power: 1W
+⚠️ No updates received in 10 minutes, connection may be stale
 ```
 
-## Expected Behavior
-
-### When Device is Online and Responding:
-```
-🔋 DHW Charge: 78% | Temp: 125°F | Mode: HEAT_PUMP | Power: 850W
-🔋 DHW Charge: 82% | Temp: 128°F | Mode: HEAT_PUMP | Power: 920W  
-🔋 DHW Charge: 85% | Temp: 130°F | Mode: STANDBY | Power: 45W
+**CSV Output**:
+```csv
+timestamp,dhw_charge_percent,operation_mode,dhw_temperature,current_inst_power
+2024-01-01T10:30:00,99,32,121,466
+2024-01-01T10:35:00,100,0,122,1
 ```
 
-### When Device is Offline (Current Status):
+**⚠️ Never commit credentials.py to version control!**
+
+## Data Analysis
+
+### Understanding CSV Output
+
+The production monitoring script outputs data with proper field interpretations:
+
+- **`dhw_charge_percent`**: Tank thermal energy level (0-100%) - PRIMARY TANK METRIC
+- **`dhw_temperature`**: Hot water output temperature (°F) - ACTUAL hot water temp
+- **`tank_upper_temp`**: Cold water inlet temperature (°F) - NOT tank temp!
+- **`tank_lower_temp`**: Heat pump ambient temperature (°F) - NOT tank temp!
+- **`operation_mode`**: Heat pump mode (0=Standby, 32=Heat Pump, 33=Electric)
+- **`current_inst_power`**: Power consumption (W) - Key efficiency indicator
+
+### Critical Production Insights
+
+1. **Tank Monitoring**: Use `dhw_charge_percent` (not temperature sensors) for tank state
+2. **Mode Detection**: Trust power consumption over status codes for actual operation  
+3. **Temperature Reality**: "Tank" sensors are cold water system sensors (~60°F), not hot water
+4. **Efficiency**: Heat pump mode (32) uses 430-470W vs electric backup 4000W+
+
+## Sample Data Analysis
+
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Load and analyze data
+df = pd.read_csv('tank_data.csv')
+df['timestamp'] = pd.to_datetime(df['timestamp'])
+
+# Plot tank charge over time
+plt.figure(figsize=(12, 6))
+plt.plot(df['timestamp'], df['dhw_charge_percent'])
+plt.title('Tank Thermal Energy Level Over Time')
+plt.ylabel('DHW Charge (%)')
+plt.xlabel('Time')
+plt.grid(True)
+plt.show()
+
+# Analyze power consumption patterns
+power_modes = df.groupby('operation_mode')['current_inst_power'].agg(['mean', 'count'])
+print("Power consumption by operation mode:")
+print(power_modes)
 ```
-❌ Attempt #1: Success=False | Connected=2 | MQTT=True | Status request timeout (30s)
-❌ Attempt #2: Success=False | Connected=2 | MQTT=True | Connection failed: Command timeout
-```
 
-## Key Metrics We'll Capture (When Device Responds)
+## Debugging
 
-### Core DHW Metrics
-- **DHW Charge Percentage** - Tank charge level (0-100%)
-- **DHW Temperature** - Current hot water temperature 
-- **DHW Temperature Setting** - Target temperature
-- **DHW Use** - Hot water demand status
+### Debug Scripts
+The `debug/` directory contains development debugging tools:
+- `debug_aws_creds.py` - AWS IoT credential debugging
+- `debug_websocket.py` - WebSocket connection debugging
 
-### Operation Analysis  
-- **Operation Mode** - Current heating mode
-- **Heat Pump Use** - When heat pump is active
-- **Electric Use** - When electric elements are active
-- **Power Consumption** - Real-time wattage
+### Connectivity Issues
+1. Check device online status first
+2. Verify credentials and authentication
+3. Enable debug logging: `--debug` or `NAVILINK_DEBUG=true`
+4. Check WiFi signal strength in device data
 
-## Common Device Issues and Solutions
+### Common Issues
+- **Empty CSV**: Device offline or MQTT not responding
+- **403 Errors**: Authentication expired or invalid
+- **Connection Timeouts**: Check device connectivity status first
 
-### Device Not Responding (Current Issue)
-- **Symptom:** Commands sent successfully but no responses
-- **Cause:** Device offline, sleeping, or network issues
-- **Solution:** Use hot water, check mobile app, verify WiFi
+## Support
 
-### Device Shows as Offline
-- **Symptom:** `device.connected = 0` or `is_connected = False`
-- **Cause:** Network connectivity problems
-- **Solution:** Check WiFi, power cycle device
-
-### MQTT Connection Fails
-- **Symptom:** WebSocket 403 errors
-- **Cause:** Authentication or credential issues  
-- **Solution:** ✅ **RESOLVED** - Our library handles this correctly
-
-### Partial Data Only
-- **Symptom:** Some fields are 0 or missing
-- **Cause:** Device in partial operation mode
-- **Solution:** Wait for full heating cycle or use hot water
-
-## Success Indicators
-
-**✅ Your setup will be working when you see:**
-1. Device responds to commands within 5-30 seconds
-2. DHW charge percentage shows non-zero values (0-100%)
-3. Temperature data reflects actual device readings
-4. Operation modes change based on device activity
-
-## Next Steps
-
-1. **Try the troubleshooting steps above**
-2. **Run the robust logger to track connection attempts**
-3. **Once device responds, switch to the standard logger**
-4. **Use the plotter to analyze your heat pump efficiency**
-
-The infrastructure is ready - we just need your NWP500 to come online! 🔥
+For issues or questions:
+1. Check the main project README.md
+2. Review production validation in `.github/copilot-instructions.md`  
+3. Examine HAR files in `reference/` directory for API details

@@ -1,379 +1,436 @@
 #!/usr/bin/env python3
 """
-Enhanced Tank Monitoring Example with MQTT5 and Resilience Features
-
-This example demonstrates:
-- MQTT5 connection with automatic reconnection
-- Enhanced error handling and connection monitoring
-- Tank charge level tracking with statistics
-- Operation mode detection (heat pump vs resistive heating)
-- CSV logging with detailed metrics
-- Connection health monitoring
+Enhanced NaviLink Tank Monitor with MQTT5 and improved data collection.
+Monitors DHW (Domestic Hot Water) charge levels and operation modes periodically.
 """
 
 import asyncio
-import csv
+import argparse
 import logging
-import os
+import json
+import csv
+import signal
 import sys
 from datetime import datetime, timedelta
+from typing import Optional, Dict, Any
 from pathlib import Path
-from typing import Optional
-
-# Add the parent directory to the path so we can import navilink
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from navilink import NaviLinkClient
 from navilink.models import DeviceStatus
-from navilink.mqtt import ReconnectConfig
+from navilink.exceptions import NaviLinkError
 
-# Configure logging
+# Try to import credentials
+try:
+    from credentials import EMAIL, PASSWORD, DEVICE_MAC, POLLING_INTERVAL as DEFAULT_POLLING_INTERVAL
+    HAS_CREDENTIALS_FILE = True
+except ImportError:
+    EMAIL = PASSWORD = DEVICE_MAC = None
+    DEFAULT_POLLING_INTERVAL = 300
+    HAS_CREDENTIALS_FILE = False
+
+# Set up logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.INFO,  # Back to INFO, debug in mqtt.py will still show
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(),
+        logging.StreamHandler(sys.stdout),
         logging.FileHandler('tank_monitoring_enhanced.log')
     ]
 )
 logger = logging.getLogger(__name__)
 
-# CSV configuration
-CSV_FILENAME = "tank_data_enhanced.csv"
-CSV_HEADERS = [
-    'timestamp', 'dhw_charge_percent', 'dhw_temperature_f', 'dhw_temperature_setting_f',
-    'operation_mode', 'operation_mode_description', 'dhw_use', 'error_code', 'sub_error_code',
-    'wifi_rssi', 'connection_state', 'messages_received', 'messages_sent', 
-    'reconnection_count', 'uptime_seconds'
-]
-
-# Operation mode descriptions
-OPERATION_MODES = {
-    0: "Standby",
-    1: "Heat Pump Only", 
-    2: "Resistive Element Only",
-    3: "Heat Pump + Resistive Element",
-    4: "Defrost Mode",
-    5: "Error Mode",
-    6: "Maintenance Mode"
-}
-
-class EnhancedTankMonitor:
-    """Enhanced tank monitoring with MQTT5 and resilience features."""
+class TankMonitor:
+    """Enhanced tank monitoring with improved data collection and reliability."""
     
-    def __init__(self):
+    def __init__(self, email: str, password: str, output_file: str = "tank_data_enhanced.csv", 
+                 polling_interval: int = 300, duration_minutes: Optional[int] = None):
+        """
+        Initialize tank monitor.
+        
+        Args:
+            email: NaviLink account email
+            password: NaviLink account password  
+            output_file: CSV file to save data
+            polling_interval: Seconds between status checks (default: 300 = 5 minutes)
+            duration_minutes: Total monitoring duration in minutes (None = indefinite)
+        """
+        self.email = email
+        self.password = password
+        self.output_file = output_file
+        self.polling_interval = polling_interval
+        self.duration_minutes = duration_minutes
+        
         self.client = None
         self.device = None
-        self.csv_file = None
+        self._session = None
         self.csv_writer = None
-        self.monitoring = False
-        self.last_status = None
-        self.status_count = 0
+        self.csv_file = None
+        self.start_time = None
+        self.stop_requested = False
         
-        # Statistics tracking
-        self.session_start = datetime.now()
-        self.total_messages = 0
-        self.connection_issues = 0
+        # Statistics
+        self.stats = {
+            'updates_received': 0,
+            'connection_issues': 0,
+            'start_time': None,
+            'end_time': None
+        }
         
+        # Set up signal handlers for graceful shutdown
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+    
+    def _signal_handler(self, signum, frame):
+        """Handle interrupt signals for graceful shutdown."""
+        logger.info(f"🛑 Received signal {signum}, initiating graceful shutdown...")
+        self.stop_requested = True
+    
     async def setup(self):
-        """Initialize client and authenticate."""
+        """Set up client, authenticate, and prepare for monitoring."""
         try:
-            # Get credentials from environment or prompt
-            email = os.getenv('NAVILINK_EMAIL')
-            password = os.getenv('NAVILINK_PASSWORD')
+            # Create session and client with proper session management
+            import aiohttp
+            self._session = aiohttp.ClientSession()
+            self.client = NaviLinkClient(session=self._session)
+            logger.info("✅ Client context created") 
             
-            if not email or not password:
-                logger.info("Please enter your NaviLink credentials:")
-                email = input("Email: ")
-                password = input("Password: ")
-            
-            # Authenticate (client should already be set by run_monitoring_session)
             logger.info("🔐 Authenticating...")
-            await self.client.authenticate(email=email, password=password)
+            await self.client.authenticate(self.email, self.password)
             logger.info("✅ Authentication successful")
             
             # Get devices
             logger.info("📱 Getting device list...")
             devices = await self.client.get_devices()
+            logger.info(f"✅ Found {len(devices)} devices")
             
             if not devices:
-                raise Exception("No devices found")
+                raise NaviLinkError("No devices found")
             
-            # Use first device (or prompt for selection if multiple)
-            self.device = devices[0]
-            logger.info(f"🏠 Using device: {self.device.device_name} (MAC: {self.device.mac_address})")
+            # Use first device (or specific MAC if configured)
+            if DEVICE_MAC:
+                for device in devices:
+                    if device.mac_address.lower() == DEVICE_MAC.lower():
+                        self.device = device
+                        break
+                if not self.device:
+                    raise NaviLinkError(f"Device with MAC {DEVICE_MAC} not found")
+            else:
+                self.device = devices[0]
             
-            # Setup CSV logging
+            logger.info(f"🏠 Using device: {self.device.name} (MAC: {self.device.mac_address})")
+            
+            # Set up CSV file
             self._setup_csv()
+            
+            self.stats['start_time'] = datetime.now()
+            return True
             
         except Exception as e:
             logger.error(f"❌ Setup failed: {e}")
-            raise
+            return False
     
     def _setup_csv(self):
-        """Setup CSV file for data logging."""
-        # Check if file exists to determine if we need to write headers
-        file_exists = Path(CSV_FILENAME).exists()
+        """Set up CSV file for data logging with comprehensive field set."""
+        # Define CSV columns for comprehensive monitoring
+        fieldnames = [
+            'timestamp',
+            'dhw_charge_percent',  # Main field we're tracking
+            'operation_mode',      # Heat pump vs resistance mode
+            'dhw_temperature',
+            'dhw_temperature_setting',
+            'tank_upper_temperature',  # Tank sensor readings
+            'tank_lower_temperature',
+            'discharge_temperature',
+            'ambient_temperature',
+            'comp_use',           # Heat pump compressor status  
+            'heat_upper_use',     # Upper heating element
+            'heat_lower_use',     # Lower heating element
+            'current_heat_use',   # Any heating active
+            'eva_fan_use',        # Evaporator fan
+            'current_inst_power', # Instantaneous power
+            'outside_temperature',
+            'dhw_use',           # Hot water being used
+            'error_code',
+            'sub_error_code',
+            'wifi_rssi',
+            'tou_status',        # Time of Use status
+            'total_energy_capacity',
+            'available_energy_capacity',
+            'device_connected'
+        ]
         
-        self.csv_file = open(CSV_FILENAME, 'a', newline='')
-        self.csv_writer = csv.writer(self.csv_file)
-        
-        # Write headers if new file
-        if not file_exists:
-            self.csv_writer.writerow(CSV_HEADERS)
-            logger.info(f"📝 Created CSV file: {CSV_FILENAME}")
-        else:
-            logger.info(f"📝 Appending to existing CSV file: {CSV_FILENAME}")
-        
-        # Flush to ensure headers are written
+        # Open CSV file and write header
+        self.csv_file = open(self.output_file, 'w', newline='')
+        self.csv_writer = csv.DictWriter(self.csv_file, fieldnames=fieldnames)
+        self.csv_writer.writeheader()
         self.csv_file.flush()
+        
+        logger.info(f"📊 CSV logging initialized: {self.output_file}")
     
-    async def start_monitoring(self, polling_interval: int = 300):  # 5 minutes default
-        """Start enhanced monitoring with MQTT5."""
+    def _log_status_to_csv(self, status: DeviceStatus):
+        """Log device status to CSV file with comprehensive data."""
         try:
-            logger.info("🔌 Connecting to MQTT with enhanced configuration...")
+            # Debug the status object
+            logger.debug(f"🔍 Status object type: {type(status)}")
+            logger.debug(f"🔍 Status dhw_charge_per: {getattr(status, 'dhw_charge_per', 'MISSING')}")
+            logger.debug(f"🔍 Status dhw_temperature: {getattr(status, 'dhw_temperature', 'MISSING')}")
+            logger.debug(f"🔍 Status operation_mode: {getattr(status, 'operation_mode', 'MISSING')}")
             
-            # Configure enhanced reconnection settings
-            reconnect_config = ReconnectConfig(
-                max_retries=20,  # More retries for long-term monitoring
-                initial_delay=2.0,
-                max_delay=120.0,  # Up to 2 minutes between retries
-                backoff_multiplier=1.5,
-                jitter=True
-            )
+            # Convert status to CSV row with all the important fields
+            row = {
+                'timestamp': datetime.now().isoformat(),
+                'dhw_charge_percent': getattr(status, 'dhw_charge_per', None),
+                'operation_mode': getattr(status, 'operation_mode', None),
+                'dhw_temperature': getattr(status, 'dhw_temperature', None),
+                'dhw_temperature_setting': getattr(status, 'dhw_temperature_setting', None),
+                'tank_upper_temperature': getattr(status, 'tank_upper_temperature', None),
+                'tank_lower_temperature': getattr(status, 'tank_lower_temperature', None),
+                'discharge_temperature': getattr(status, 'discharge_temperature', None),
+                'ambient_temperature': getattr(status, 'ambient_temperature', None),
+                'comp_use': getattr(status, 'comp_use', None),  # Heat pump
+                'heat_upper_use': getattr(status, 'heat_upper_use', None),  # Upper element
+                'heat_lower_use': getattr(status, 'heat_lower_use', None),  # Lower element
+                'current_heat_use': getattr(status, 'current_heat_use', None),  # Any heating
+                'eva_fan_use': getattr(status, 'eva_fan_use', None),
+                'current_inst_power': getattr(status, 'current_inst_power', None),
+                'outside_temperature': getattr(status, 'outside_temperature', None),
+                'dhw_use': getattr(status, 'dhw_use', None),
+                'error_code': getattr(status, 'error_code', None),
+                'sub_error_code': getattr(status, 'sub_error_code', None),
+                'wifi_rssi': getattr(status, 'wifi_rssi', None),
+                'tou_status': getattr(status, 'tou_status', None),
+                'total_energy_capacity': getattr(status, 'total_energy_capacity', None),
+                'available_energy_capacity': getattr(status, 'available_energy_capacity', None),
+                'device_connected': self.device.connected if self.device else None
+            }
             
-            # Get MQTT connection with enhanced config
-            mqtt_conn = await self.device.get_mqtt_connection(reconnect_config=reconnect_config)
+            self.csv_writer.writerow(row)
+            self.csv_file.flush()
+            self.stats['updates_received'] += 1
             
-            # Connect with auto-reconnect enabled
-            await mqtt_conn.connect(enable_auto_reconnect=True)
+            # Log key metrics with enhanced information
+            dhw_charge = row['dhw_charge_percent']
+            op_mode = row['operation_mode']
+            temp = row['dhw_temperature']
+            comp_use = row['comp_use']
+            heat_upper = row['heat_upper_use']
+            heat_lower = row['heat_lower_use']
             
-            # Set up status callback
-            mqtt_conn.set_status_callback(self.on_status_update)
+            # Decode operation mode for better logging
+            mode_desc = self._decode_operation_mode(op_mode)
+            heating_status = self._decode_heating_status(comp_use, heat_upper, heat_lower)
             
-            # Start monitoring with the specified interval
-            await mqtt_conn.start_monitoring(polling_interval=polling_interval)
-            
-            self.monitoring = True
-            logger.info(f"🔄 Enhanced monitoring started (polling every {polling_interval}s)")
-            logger.info("📊 Monitoring tank charge level, operation mode, and connection health")
-            
-            # Print connection statistics
-            await self._print_connection_info(mqtt_conn)
-            
-            return mqtt_conn
+            logger.info(f"📊 Charge: {dhw_charge}% | Mode: {mode_desc} | Temp: {temp}°F | Heating: {heating_status}")
             
         except Exception as e:
-            logger.error(f"❌ Failed to start monitoring: {e}")
+            logger.error(f"❌ Failed to log status to CSV: {e}")
+            self.stats['connection_issues'] += 1
+    
+    def _decode_operation_mode(self, mode: int) -> str:
+        """Decode operation mode number to human readable string."""
+        mode_map = {
+            0: "Off",
+            1: "Heat Pump Only", 
+            2: "Electric Only",
+            3: "Hybrid",
+            32: "Auto",  # From HAR file
+            # Add more as we discover them
+        }
+        return mode_map.get(mode, f"Unknown({mode})")
+    
+    def _decode_heating_status(self, comp_use: int, heat_upper: int, heat_lower: int) -> str:
+        """Decode heating element status to human readable string."""
+        status = []
+        if comp_use == 1:
+            status.append("HP")  # Heat Pump
+        if heat_upper == 1:
+            status.append("UE")  # Upper Element
+        if heat_lower == 1:
+            status.append("LE")  # Lower Element
+        
+        if not status:
+            return "Idle"
+        return "+".join(status)
+    
+    async def monitor_loop(self):
+        """Main monitoring loop."""
+        if not self.device:
+            raise NaviLinkError("No device available for monitoring")
+        
+        end_time = None
+        if self.duration_minutes:
+            end_time = datetime.now() + timedelta(minutes=self.duration_minutes)
+            logger.info(f"⏰ Monitoring will stop at {end_time.strftime('%H:%M:%S')}")
+        
+        try:
+            while not self.stop_requested:
+                # Check if we've reached the duration limit
+                if end_time and datetime.now() >= end_time:
+                    logger.info("⏰ Monitoring duration reached")
+                    break
+                
+                try:
+                    # Get current status via REST API (more reliable than MQTT for periodic checks)
+                    logger.debug("🔍 Requesting device status...")
+                    status = await self.device.get_status(use_cache=False)  # Force fresh data, don't use cache
+                    
+                    logger.debug(f"🔍 Received status: {type(status)} with charge: {getattr(status, 'dhw_charge_per', 'MISSING') if status else 'No status'}")
+                    
+                    if status:
+                        self._log_status_to_csv(status)
+                    else:
+                        logger.warning("⚠️ No status data received")
+                        self.stats['connection_issues'] += 1
+                
+                except Exception as e:
+                    logger.error(f"❌ Failed to get device status: {e}")
+                    self.stats['connection_issues'] += 1
+                
+                # Wait for next polling interval (unless stopping)
+                if not self.stop_requested:
+                    logger.debug(f"⏱️ Waiting {self.polling_interval} seconds until next check...")
+                    await asyncio.sleep(self.polling_interval)
+                    
+        except Exception as e:
+            logger.error(f"❌ Monitoring loop failed: {e}")
             raise
     
-    async def _print_connection_info(self, mqtt_conn):
-        """Print connection and configuration information."""
-        stats = mqtt_conn.statistics
-        logger.info("📡 Connection Information:")
-        logger.info(f"   State: {mqtt_conn.connection_state.value}")
-        logger.info(f"   Reconnection Config: max_retries={mqtt_conn._reconnect_config.max_retries}")
-        logger.info(f"   Session ID: {mqtt_conn._session_id}")
-        logger.info(f"   Device Type: {self.device.device_type}")
-        logger.info(f"   MAC Address: {self.device.mac_address}")
-    
-    async def on_status_update(self, status: DeviceStatus):
-        """Handle status updates with enhanced logging and CSV writing."""
+    async def run(self):
+        """Run the complete monitoring session."""
+        self.stats['start_time'] = datetime.now()
+        
         try:
-            self.total_messages += 1
-            self.last_status = status
+            # Setup phase
+            if not await self.setup():
+                raise NaviLinkError("Setup failed")
             
-            # Extract key metrics
-            dhw_charge = getattr(status, 'dhw_charge', 0)  # Tank charge percentage
-            dhw_temp = getattr(status, 'dhw_temperature', 0)
-            dhw_setting = getattr(status, 'dhw_temperature_setting', 0)
-            operation_mode = getattr(status, 'operation_mode', 0)
-            dhw_use = getattr(status, 'dhw_use', 0)
-            error_code = getattr(status, 'error_code', 0)
-            sub_error_code = getattr(status, 'sub_error_code', 0)
-            wifi_rssi = getattr(status, 'wifi_rssi', 0)
+            logger.info("🚀 Starting monitoring loop...")
+            logger.info(f"⏱️ Polling interval: {self.polling_interval} seconds ({self.polling_interval/60:.1f} minutes)")
+            if self.duration_minutes:
+                logger.info(f"⏰ Duration: {self.duration_minutes} minutes")
+            else:
+                logger.info("♾️ Duration: indefinite (until interrupted)")
             
-            # Get operation mode description
-            mode_desc = OPERATION_MODES.get(operation_mode, f"Unknown ({operation_mode})")
+            # Main monitoring
+            await self.monitor_loop()
             
-            # Get connection statistics
-            mqtt_conn = await self.device.get_mqtt_connection()
-            connection_stats = mqtt_conn.statistics
-            
-            timestamp = datetime.now()
-            
-            # Log the status
-            logger.info(f"🔋 Tank Status Update #{self.total_messages}")
-            logger.info(f"   Charge: {dhw_charge}%")
-            logger.info(f"   Temperature: {dhw_temp}°F (Setting: {dhw_setting}°F)")
-            logger.info(f"   Operation: {mode_desc}")
-            logger.info(f"   Hot Water Use: {'Active' if dhw_use else 'Inactive'}")
-            
-            if error_code != 0:
-                logger.warning(f"   Error: {error_code} (Sub: {sub_error_code})")
-            
-            logger.info(f"   WiFi RSSI: {wifi_rssi} dBm")
-            logger.info(f"   Connection: {mqtt_conn.connection_state.value} (Reconnects: {connection_stats['reconnection_count']})")
-            
-            # Write to CSV
-            self.csv_writer.writerow([
-                timestamp.isoformat(),
-                dhw_charge,
-                dhw_temp,
-                dhw_setting,
-                operation_mode,
-                mode_desc,
-                dhw_use,
-                error_code,
-                sub_error_code,
-                wifi_rssi,
-                mqtt_conn.connection_state.value,
-                connection_stats['messages_received'],
-                connection_stats['messages_sent'],
-                connection_stats['reconnection_count'],
-                connection_stats.get('uptime_seconds', 0)
-            ])
-            
-            # Flush CSV data to disk
-            self.csv_file.flush()
-            
-            self.status_count += 1
-            
-            # Periodic summary (every 12 readings = 1 hour with 5min polling)
-            if self.status_count % 12 == 0:
-                await self._print_session_summary()
-                
         except Exception as e:
-            logger.error(f"❌ Error processing status update: {e}")
+            logger.error(f"❌ Monitoring session failed: {e}")
+            raise
+        finally:
+            await self.cleanup()
     
-    async def _print_session_summary(self):
-        """Print session summary statistics."""
-        runtime = datetime.now() - self.session_start
-        logger.info("📊 Session Summary:")
-        logger.info(f"   Runtime: {runtime}")
-        logger.info(f"   Total Status Updates: {self.status_count}")
-        logger.info(f"   Total MQTT Messages: {self.total_messages}")
+    async def cleanup(self):
+        """Clean up resources."""
+        self.stats['end_time'] = datetime.now()
         
-        if self.last_status:
-            logger.info(f"   Current Tank Charge: {getattr(self.last_status, 'dhw_charge', 0)}%")
-            logger.info(f"   Current Temperature: {getattr(self.last_status, 'dhw_temperature', 0)}°F")
-            
-        # Check CSV file size
-        if Path(CSV_FILENAME).exists():
-            size_mb = Path(CSV_FILENAME).stat().st_size / 1024 / 1024
-            logger.info(f"   CSV File Size: {size_mb:.1f} MB")
-    
-    async def stop_monitoring(self):
-        """Stop monitoring and cleanup."""
-        self.monitoring = False
+        logger.info("🛑 Monitoring stopped")
         
-        if self.device:
-            try:
-                mqtt_conn = await self.device.get_mqtt_connection()
-                await mqtt_conn.stop_monitoring()
-                await mqtt_conn.disconnect()
-            except Exception as e:
-                logger.warning(f"⚠️ Error stopping MQTT: {e}")
-        
+        # Close CSV file
         if self.csv_file:
             self.csv_file.close()
-            
-        logger.info("🛑 Monitoring stopped")
-    
-    async def run_monitoring_session(self, duration_hours: Optional[int] = None, polling_interval: int = 300):
-        """Run a complete monitoring session."""
-        # Use client as async context manager to ensure proper session handling
-        async with NaviLinkClient() as client:
-            self.client = client
-            
+        
+        # Disconnect device
+        if self.device:
             try:
-                await self.setup()
-                mqtt_conn = await self.start_monitoring(polling_interval=polling_interval)
+                await self.device.disconnect()
+            except:
+                pass  # Best effort cleanup
+        
+        # Close client
+        if self.client:
+            try:
+                await self.client.close()
+            except:
+                pass  # Best effort cleanup
                 
-                if duration_hours:
-                    logger.info(f"⏰ Running for {duration_hours} hours...")
-                    end_time = datetime.now() + timedelta(hours=duration_hours)
-                    
-                    while datetime.now() < end_time and self.monitoring:
-                        await asyncio.sleep(60)  # Check every minute
-                        
-                        # Check connection health
-                        if not mqtt_conn.is_connected:
-                            self.connection_issues += 1
-                            logger.warning(f"⚠️ Connection issue detected (#{self.connection_issues})")
-                            
-                else:
-                    logger.info("⏰ Running indefinitely (press Ctrl+C to stop)...")
-                    # Run until interrupted
-                    while self.monitoring:
-                        await asyncio.sleep(60)
-                        
-                        # Check connection health
-                        if not mqtt_conn.is_connected:
-                            self.connection_issues += 1
-                            logger.warning(f"⚠️ Connection issue detected (#{self.connection_issues})")
-                            
-            except KeyboardInterrupt:
-                logger.info("⏹️ Interrupted by user")
-            except Exception as e:
-                logger.error(f"❌ Monitoring session failed: {e}")
-            finally:
-                await self.stop_monitoring()
-                await self._print_final_summary()
-    
-    async def _print_final_summary(self):
-        """Print final session summary."""
-        runtime = datetime.now() - self.session_start
+        # Close session
+        if hasattr(self, '_session') and self._session:
+            try:
+                await self._session.close()
+            except:
+                pass  # Best effort cleanup
+        
+        # Print summary
+        runtime = self.stats['end_time'] - self.stats['start_time'] if self.stats['start_time'] else timedelta(0)
         logger.info("🏁 Final Session Summary:")
         logger.info(f"   Total Runtime: {runtime}")
-        logger.info(f"   Status Updates Received: {self.status_count}")
-        logger.info(f"   Connection Issues: {self.connection_issues}")
-        logger.info(f"   Data saved to: {CSV_FILENAME}")
-        
-        if Path(CSV_FILENAME).exists():
-            size_mb = Path(CSV_FILENAME).stat().st_size / 1024 / 1024
-            logger.info(f"   Final CSV Size: {size_mb:.2f} MB")
+        logger.info(f"   Status Updates Received: {self.stats['updates_received']}")
+        logger.info(f"   Connection Issues: {self.stats['connection_issues']}")
+        logger.info(f"   Data saved to: {self.output_file}")
+
+def create_parser():
+    """Create argument parser."""
+    parser = argparse.ArgumentParser(
+        description="Enhanced NaviLink Tank Monitor - DHW charge and operation tracking",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s --email user@example.com --password mypass
+  %(prog)s --email user@example.com --password mypass --interval 120 --duration 60
+  %(prog)s --email user@example.com --password mypass --output my_tank_data.csv
+        """.strip()
+    )
+    
+    if not HAS_CREDENTIALS_FILE:
+        parser.add_argument("--email", required=True, help="NaviLink account email")
+        parser.add_argument("--password", required=True, help="NaviLink account password")
+    else:
+        parser.add_argument("--email", default=EMAIL, help="NaviLink account email (from credentials.py)")
+        parser.add_argument("--password", default=PASSWORD, help="NaviLink account password (from credentials.py)")
+    
+    parser.add_argument("--interval", type=int, default=DEFAULT_POLLING_INTERVAL,
+                        help=f"Polling interval in seconds (default: {DEFAULT_POLLING_INTERVAL})")
+    parser.add_argument("--duration", type=int, 
+                        help="Monitoring duration in minutes (default: indefinite)")
+    parser.add_argument("--output", default="tank_data_enhanced.csv",
+                        help="Output CSV file (default: tank_data_enhanced.csv)")
+    parser.add_argument("--verbose", action="store_true", 
+                        help="Enable verbose logging")
+    
+    return parser
 
 async def main():
-    """Main function with command line options."""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Enhanced NaviLink Tank Monitor with MQTT5")
-    parser.add_argument('--hours', type=float, help='Run for specified hours (default: indefinite)')
-    parser.add_argument('--minutes', type=float, help='Run for specified minutes (default: indefinite)')
-    parser.add_argument('--interval', type=int, default=300, help='Polling interval in seconds (default: 300)')
-    parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose logging')
-    
+    """Main function."""
+    parser = create_parser()
     args = parser.parse_args()
     
-    # Convert minutes to hours if specified
-    duration_hours = args.hours
-    if args.minutes:
-        duration_hours = args.minutes / 60
-    
+    # Set logging level
     if args.verbose:
-        logging.getLogger('navilink').setLevel(logging.DEBUG)
+        logging.getLogger().setLevel(logging.DEBUG)
+    
+    # Validate credentials
+    if not args.email or not args.password:
+        logger.error("❌ Email and password are required")
+        parser.print_help()
+        sys.exit(1)
+    
+    # Create and run monitor
+    monitor = TankMonitor(
+        email=args.email,
+        password=args.password,
+        output_file=args.output,
+        polling_interval=args.interval,
+        duration_minutes=args.duration
+    )
     
     logger.info("🚀 Starting Enhanced NaviLink Tank Monitor")
     logger.info(f"⏱️ Polling interval: {args.interval} seconds ({args.interval/60:.1f} minutes)")
-    
-    if duration_hours:
-        if args.minutes:
-            logger.info(f"🕐 Duration: {args.minutes} minutes")
-        else:
-            logger.info(f"🕐 Duration: {args.hours} hours")
+    if args.duration:
+        logger.info(f"⏰ Duration: {args.duration} minutes") 
     else:
         logger.info("♾️ Duration: indefinite (until interrupted)")
     
-    monitor = EnhancedTankMonitor()
-    await monitor.run_monitoring_session(
-        duration_hours=duration_hours,
-        polling_interval=args.interval
-    )
+    try:
+        await monitor.run()
+        logger.info("✅ Monitoring completed successfully")
+        sys.exit(0)
+    except KeyboardInterrupt:
+        logger.info("👋 Interrupted by user")
+        sys.exit(0)  
+    except Exception as e:
+        logger.error(f"💥 Fatal error: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    # Handle Windows event loop issues
-    if sys.platform == 'win32':
-        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-    
     asyncio.run(main())

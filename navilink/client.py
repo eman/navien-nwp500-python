@@ -8,37 +8,80 @@ from typing import List, Optional, Dict, Any
 import aiohttp
 
 from .auth import NaviLinkAuth
-from .device import NaviLinkDevice
+from .device import NaviLinkDevice  
+from .config import NaviLinkConfig
 from .exceptions import CommunicationError, APIError, AuthenticationError
 from .models import UserInfo, DeviceInfo, TOUInfo
 
 logger = logging.getLogger(__name__)
 
 class NaviLinkClient:
-    """Main client for interacting with NaviLink service."""
+    """
+    Main client for interacting with NaviLink service.
     
-    BASE_URL = "https://nlus.naviensmartcontrol.com/api/v2.1"
+    Provides a high-level interface for authentication, device discovery,
+    and device management with enterprise configuration support.
     
-    def __init__(self, session: Optional[aiohttp.ClientSession] = None):
+    Example:
+        # Use environment variables (recommended for production)
+        config = NaviLinkConfig.from_environment()
+        async with NaviLinkClient(config=config) as client:
+            await client.authenticate()
+            devices = await client.get_devices()
+            device = devices[0]
+    """
+    
+    def __init__(
+        self, 
+        config: Optional[NaviLinkConfig] = None,
+        session: Optional[aiohttp.ClientSession] = None
+    ):
         """
         Initialize NaviLink client.
         
         Args:
-            session: Optional aiohttp session to use for requests
+            config: Configuration object. If None, loads from environment.
+            session: Optional aiohttp session to use for requests.
         """
+        # Configuration
+        self.config = config or NaviLinkConfig.from_environment()
+        self.config.validate()
+        
+        # Session management
         self._session = session
         self._owns_session = session is None
         self._auth = None  # Initialize later when session is available
         self._devices: List[NaviLinkDevice] = []
         
+        # Configure logging
+        log_level = getattr(logging, self.config.log_level.value, logging.INFO)
+        logging.getLogger('navilink').setLevel(log_level)
+        
+        if self.config.debug_mode:
+            logging.getLogger('navilink').setLevel(logging.DEBUG)
+        
     async def _ensure_session(self):
         """Ensure we have a valid session."""
         if not self._session:
-            self._session = aiohttp.ClientSession()
+            # Create session with enterprise configuration
+            timeout = aiohttp.ClientTimeout(total=self.config.http.timeout)
+            connector = aiohttp.TCPConnector(
+                limit=self.config.http.max_connections,
+                limit_per_host=self.config.http.max_connections_per_host
+            )
+            headers = {
+                'User-Agent': self.config.http.user_agent
+            }
+            
+            self._session = aiohttp.ClientSession(
+                timeout=timeout,
+                connector=connector,
+                headers=headers
+            )
             self._owns_session = True
             
         if not self._auth:
-            self._auth = NaviLinkAuth(self._session)
+            self._auth = NaviLinkAuth(self._session, self.config)
         
     async def __aenter__(self):
         """Async context manager entry."""
@@ -57,19 +100,34 @@ class NaviLinkClient:
         if self._owns_session and self._session:
             await self._session.close()
             
-    async def authenticate(self, email: str, password: str) -> UserInfo:
+    async def authenticate(self, email: Optional[str] = None, password: Optional[str] = None) -> UserInfo:
         """
         Authenticate with NaviLink service.
         
         Args:
-            email: User email address
-            password: User password
+            email: User email address. If None, uses config.email.
+            password: User password. If None, uses config.password.
             
         Returns:
             UserInfo object with authentication details
+            
+        Raises:
+            AuthenticationError: If authentication fails
+            ValueError: If no credentials provided
         """
         await self._ensure_session()
-        return await self._auth.authenticate(email, password)
+        
+        # Use provided credentials or fall back to config
+        auth_email = email or self.config.email
+        auth_password = password or self.config.password
+        
+        if not auth_email or not auth_password:
+            raise ValueError(
+                "Email and password must be provided either as parameters "
+                "or via configuration (config.email/password or NAVILINK_EMAIL/NAVILINK_PASSWORD environment variables)"
+            )
+        
+        return await self._auth.authenticate(auth_email, auth_password)
     
     async def close(self):
         """Close the client and cleanup resources."""
@@ -101,6 +159,39 @@ class NaviLinkClient:
         
         if not refresh and self._devices:
             return self._devices
+
+        if not self._auth.is_authenticated:
+            raise AuthenticationError("Must authenticate before getting devices")
+
+        try:
+            async with self._session.get(
+                f"{self.config.base_url}/device/list",
+                headers=self._auth.get_auth_headers()
+            ) as response:
+                if response.status == 403:
+                    raise AuthenticationError("Authentication expired or invalid")
+                elif response.status != 200:
+                    raise APIError(
+                        f"Failed to get device list: {response.status}",
+                        status_code=response.status
+                    )
+
+                data = await response.json()
+                devices_data = data.get('devices', [])
+
+                self._devices = [
+                    NaviLinkDevice(
+                        client=self,
+                        device_data=device_data,
+                        config=self.config
+                    )
+                    for device_data in devices_data
+                ]
+
+                return self._devices
+
+        except aiohttp.ClientError as e:
+            raise CommunicationError(f"Network error getting devices: {e}")
             
         await self._auth.ensure_authenticated()
         
