@@ -50,14 +50,32 @@ python -m twine check dist/*
 pip install dist/navien_nwp500-1.0.0-py3-none-any.whl
 ```
 
-### 4. 🔐 Setup PyPI Account
+### 4. 🔐 Setup PyPI Account & Token
 
-1. **Create PyPI Account**: https://pypi.org/account/register/
-2. **Enable 2FA**: Required for uploading packages
-3. **Create API Token**: 
-   - Go to: https://pypi.org/manage/account/token/
-   - Create token for "Entire account" 
-   - Save the token (starts with `pypi-`)
+#### Create PyPI Account
+1. **Visit PyPI**: https://pypi.org/account/register/
+2. **Create account** with username/password
+3. **Verify email** address
+4. **Enable 2FA** (REQUIRED): Account Settings → Security → Two-Factor Authentication
+
+#### Generate API Token
+1. **Go to tokens**: https://pypi.org/manage/account/token/
+2. **Create new token**:
+   - Token name: `navien-nwp500-github-actions`
+   - Scope: "Entire account" (for first upload)
+   - Click "Create Token"
+3. **Copy token** (starts with `pypi-`): `pypi-AgEIcHlwaS5vcmcCJGZkNWY4...`
+   - ⚠️ **Save immediately** - you won't see it again!
+
+#### Add Token to GitHub Secrets
+1. **Go to repository**: https://github.com/eman/navien-nwp500-python
+2. **Settings** → **Secrets and variables** → **Actions**
+3. **New repository secret**:
+   - Name: `PYPI_API_TOKEN`
+   - Value: `pypi-AgEIcHlwaS5vcmcCJGZkNWY4...` (your full token)
+   - Click "Add secret"
+
+✅ **After this setup, releases will be fully automated!**
 
 ### 5. 📤 Manual PyPI Upload (If CI Fails)
 

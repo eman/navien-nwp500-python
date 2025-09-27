@@ -144,6 +144,9 @@ class DeviceStatus:
     heat_pump_status: Optional[int] = 0  # Heat pump operational status
     resistance_heater_status: Optional[int] = 0  # Resistance heater status
     defrost_mode: Optional[int] = 0  # Defrost mode active
+    device_connected: Optional[int] = (
+        1  # Device connection status (0=Offline, 1=Online)
+    )
 
 
 @dataclass

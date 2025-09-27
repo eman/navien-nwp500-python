@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from navien_nwp500 import NaviLinkClient, NaviLinkConfig, NaviLinkDevice
-from navien_nwp500.models import DeviceInfo, DeviceStatus
+from navien_nwp500.models import DeviceFeatures, DeviceInfo, DeviceStatus
 
 
 @pytest.fixture
@@ -32,14 +32,10 @@ def mock_config() -> NaviLinkConfig:
 def mock_device_data() -> Dict[str, Any]:
     """Sample device data for testing."""
     return {
-        "device_id": "TEST123456",
         "device_type": 52,
         "mac_address": "AA:BB:CC:DD:EE:FF",
-        "device_name": "NWP500 Test",
-        "model_name": "NWP500",
-        "device_connected": 1,
-        "group_id": "test_group",
-        "location": "Test Location",
+        "additional_value": "test_additional",
+        "controller_serial_number": "TEST123456",
     }
 
 
@@ -47,32 +43,104 @@ def mock_device_data() -> Dict[str, Any]:
 def mock_device_status() -> Dict[str, Any]:
     """Sample device status data for testing."""
     return {
-        "dhw_charge_per": 95,
-        "dhw_temperature": 121,
-        "dhw_temperature_setting": 121,
-        "operation_mode": 32,
-        "comp_use": 2,
-        "heat_upper_use": 1,
-        "heat_lower_use": 1,
-        "eva_fan_use": 2,
-        "dhw_use": 0,
+        "command": 16777219,
+        "outside_temperature": 0,
+        "special_function_status": 0,
+        "did_reload": 0,
         "error_code": 0,
         "sub_error_code": 0,
-        "current_inst_power": 466,
+        "operation_mode": 32,
+        "operation_busy": 2,
+        "freeze_protection_use": 0,
+        "dhw_use": 0,
+        "dhw_use_sustained": 0,
+        "dhw_temperature": 121,
+        "dhw_temperature_setting": 121,
+        "program_reservation_use": 0,
+        "smart_diagnostic": 0,
+        "fault_status1": 0,
+        "fault_status2": 0,
+        "wifi_rssi": -45,
+        "eco_use": 0,
+        "dhw_target_temperature_setting": 121,
         "tank_upper_temperature": 605,  # 60.5°F
         "tank_lower_temperature": 611,  # 61.1°F
         "discharge_temperature": 761,  # 76.1°F
+        "suction_temperature": 400,
+        "evaporator_temperature": 600,
         "ambient_temperature": 238,  # 23.8°F
-        "outside_temperature": 0,
-        "wifi_rssi": -45,
+        "target_super_heat": 10,
+        "comp_use": 2,
+        "eev_use": 50,
+        "eva_fan_use": 2,
+        "current_inst_power": 466,
+        "shut_off_valve_use": 0,
+        "con_ovr_sensor_use": 0,
+        "wtr_ovr_sensor_use": 0,
+        "dhw_charge_per": 95,
+        "dr_event_status": 0,
+        "vacation_day_setting": 0,
+        "vacation_day_elapsed": 0,
+        "freeze_protection_temperature": 45,
+        "anti_legionella_use": 0,
+        "anti_legionella_period": 7,
+        "anti_legionella_operation_busy": 0,
+        "program_reservation_type": 0,
+        "dhw_operation_setting": 2,
+        "temperature_type": 1,
+        "heat_upper_use": 1,
+        "heat_lower_use": 1,
         "device_connected": 1,
     }
 
 
 @pytest.fixture
-def mock_device_info(mock_device_data) -> DeviceInfo:
+def mock_device_features() -> DeviceFeatures:
+    """Create a mock DeviceFeatures object for testing."""
+    return DeviceFeatures(
+        country_code=1,
+        model_type_code=52,
+        control_type_code=1,
+        volume_code=50,
+        controller_sw_version=100,
+        panel_sw_version=100,
+        wifi_sw_version=100,
+        controller_sw_code=1,
+        panel_sw_code=1,
+        wifi_sw_code=1,
+        controller_serial_number="TEST123456",
+        power_use=1,
+        holiday_use=1,
+        program_reservation_use=1,
+        dhw_use=1,
+        dhw_temperature_setting_use=1,
+        dhw_temperature_min=70,
+        dhw_temperature_max=140,
+        smart_diagnostic_use=1,
+        wifi_rssi_use=1,
+        temperature_type=1,
+        temp_formula_type=1,
+        energy_usage_use=1,
+        freeze_protection_use=1,
+        freeze_protection_temp_min=40,
+        freeze_protection_temp_max=80,
+        mixing_value_use=1,
+        dr_setting_use=1,
+        anti_legionella_setting_use=1,
+        hpwh_use=1,
+        dhw_refill_use=1,
+        eco_use=1,
+        electric_use=1,
+        heatpump_use=1,
+        energy_saver_use=1,
+        high_demand_use=1,
+    )
+
+
+@pytest.fixture
+def mock_device_info(mock_device_data, mock_device_features) -> DeviceInfo:
     """Create a mock DeviceInfo object."""
-    return DeviceInfo(**mock_device_data)
+    return DeviceInfo(features=mock_device_features, **mock_device_data)
 
 
 @pytest.fixture
