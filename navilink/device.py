@@ -134,13 +134,14 @@ class NaviLinkDevice:
             await self.connect()
             
         try:
-            # Get channel info first (this is like device info in navilink_api)
-            info = await self._mqtt.get_channel_info()
-            return info
+            # Get current device status via MQTT
+            status = await self._mqtt.get_device_status()
+            self._last_status = status
+            return status
             
         except Exception as e:
-            logger.error(f"Failed to get info for device {self.mac_address}: {e}")
-            raise DeviceError(f"Failed to get device info: {e}")
+            logger.error(f"Failed to get status for device {self.mac_address}: {e}")
+            raise DeviceError(f"Failed to get device status: {e}")
     
     async def set_temperature(self, temperature: int) -> bool:
         """
@@ -233,15 +234,37 @@ class NaviLinkDevice:
         if callback in self._status_callbacks:
             self._status_callbacks.remove(callback)
     
+    async def get_mqtt_connection(self, reconnect_config: Optional = None):
+        """
+        Get the MQTT connection for this device, creating it if needed.
+        
+        Args:
+            reconnect_config: Optional ReconnectConfig for enhanced connection behavior
+            
+        Returns:
+            NaviLinkMQTT instance
+        """
+        if not self._mqtt:
+            # Import here to avoid circular imports
+            from .mqtt import NaviLinkMQTT
+            self._mqtt = NaviLinkMQTT(self._client, self, reconnect_config=reconnect_config)
+        elif reconnect_config and hasattr(self._mqtt, '_reconnect_config'):
+            # Update reconnect config if provided
+            self._mqtt._reconnect_config = reconnect_config
+            
+        return self._mqtt
+    
     async def start_monitoring(
         self, 
-        callback: Optional[Callable[[DeviceStatus], None]] = None
+        callback: Optional[Callable[[DeviceStatus], None]] = None,
+        polling_interval: int = 15
     ):
         """
         Start real-time monitoring of device status.
         
         Args:
             callback: Optional callback for status updates
+            polling_interval: Seconds between status polls (default 15)
         """
         if not self._connected:
             await self.connect()
@@ -249,9 +272,9 @@ class NaviLinkDevice:
         if callback:
             self.add_status_callback(callback)
             
-        # Start monitoring loop
-        await self._mqtt.start_monitoring()
-        logger.info(f"Started monitoring device {self.mac_address}")
+        # Start monitoring loop with polling interval
+        await self._mqtt.start_monitoring(polling_interval)
+        logger.info(f"Started monitoring device {self.mac_address} with {polling_interval}s interval")
     
     async def stop_monitoring(self):
         """Stop real-time monitoring."""

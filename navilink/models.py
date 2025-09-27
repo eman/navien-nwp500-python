@@ -136,6 +136,10 @@ class DeviceStatus:
     tou_override_status: int
     total_energy_capacity: int
     available_energy_capacity: int
+    # Additional convenience fields for enhanced monitoring
+    heat_pump_status: Optional[int] = 0  # Heat pump operational status
+    resistance_heater_status: Optional[int] = 0  # Resistance heater status  
+    defrost_mode: Optional[int] = 0  # Defrost mode active
 
 @dataclass
 class DeviceInfo:

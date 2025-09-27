@@ -28,14 +28,21 @@ class NaviLinkClient:
         """
         self._session = session
         self._owns_session = session is None
-        self._auth = NaviLinkAuth(session)
+        self._auth = None  # Initialize later when session is available
         self._devices: List[NaviLinkDevice] = []
+        
+    async def _ensure_session(self):
+        """Ensure we have a valid session."""
+        if not self._session:
+            self._session = aiohttp.ClientSession()
+            self._owns_session = True
+            
+        if not self._auth:
+            self._auth = NaviLinkAuth(self._session)
         
     async def __aenter__(self):
         """Async context manager entry."""
-        if self._owns_session:
-            self._session = aiohttp.ClientSession()
-            self._auth = NaviLinkAuth(self._session)
+        await self._ensure_session()
         return self
         
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -61,7 +68,20 @@ class NaviLinkClient:
         Returns:
             UserInfo object with authentication details
         """
+        await self._ensure_session()
         return await self._auth.authenticate(email, password)
+    
+    async def close(self):
+        """Close the client and cleanup resources."""
+        # Close all device connections
+        for device in self._devices:
+            try:
+                await device.disconnect()
+            except Exception as e:
+                logger.warning(f"Error disconnecting device {device.mac_address}: {e}")
+                
+        if self._owns_session and self._session:
+            await self._session.close()
     
     async def get_devices(self, refresh: bool = False) -> List[NaviLinkDevice]:
         """
@@ -77,6 +97,8 @@ class NaviLinkClient:
             AuthenticationError: If not authenticated
             APIError: If API request fails
         """
+        await self._ensure_session()
+        
         if not refresh and self._devices:
             return self._devices
             
@@ -152,6 +174,7 @@ class NaviLinkClient:
         Returns:
             DeviceInfo object or None if not found
         """
+        await self._ensure_session()
         await self._auth.ensure_authenticated()
         
         try:
