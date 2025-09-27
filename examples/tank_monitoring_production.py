@@ -92,18 +92,18 @@ class TankMonitor:
         # Setup CSV headers
         self.csv_headers = [
             "timestamp",
-            "dhw_charge_percent",
+            "dhw_charge_per",
             "dhw_temperature",
             "dhw_temperature_setting",
             "operation_mode",
             "current_inst_power",
-            "compressor_use",
+            "comp_use",
             "heat_upper_use",
             "heat_lower_use",
             "eva_fan_use",
             "error_code",
             "wifi_rssi",
-            "device_connected",
+            "operation_busy",
         ]
 
     async def setup(self):
@@ -180,7 +180,7 @@ class TankMonitor:
                 status.eva_fan_use,
                 status.error_code,
                 status.wifi_rssi,
-                status.device_connected,
+                status.operation_busy,
             ]
 
             with open(self.output_file, "a", newline="") as f:
@@ -244,15 +244,18 @@ class TankMonitor:
                             break
 
                     # Check device connectivity before attempting status request
+                    # Using improved MQTT-based connectivity check
                     connectivity = await self.device.get_connectivity_status()
-                    if not connectivity or not connectivity.get(
-                        "device_connected"
-                    ):
+                    if not connectivity or not connectivity.get("device_connected"):
                         self.stats["device_offline_count"] += 1
                         logger.warning(
-                            "📴 Device offline - skipping this interval"
+                            f"📴 Device offline ({connectivity.get('status', 'unknown')}) - skipping this interval"
                         )
-                        await asyncio.sleep(self.polling_interval)
+                        try:
+                            await asyncio.sleep(self.polling_interval)
+                        except asyncio.CancelledError:
+                            logger.info("🛑 Sleep interrupted by cancellation")
+                            break
                         continue
 
                     # Get device status
@@ -262,40 +265,38 @@ class TankMonitor:
                     else:
                         logger.warning("⚠️ No status data received")
 
-                    # Wait for next polling interval, but break this into smaller sleeps
-                    # to allow for more responsive shutdown
-                    sleep_remaining = self.polling_interval
-                    while sleep_remaining > 0 and self.running:
-                        sleep_chunk = min(sleep_remaining, 1.0)  # Sleep in 1-second chunks
-                        await asyncio.sleep(sleep_chunk)
-                        sleep_remaining -= sleep_chunk
+                    # Wait for next polling interval with cancellation-aware sleep
+                    try:
+                        await asyncio.sleep(self.polling_interval)
+                    except asyncio.CancelledError:
+                        logger.info("🛑 Sleep interrupted by cancellation")
+                        break
 
                 except DeviceOfflineError:
                     self.stats["device_offline_count"] += 1
                     logger.warning(
                         "📴 Device is offline, will retry next interval"
                     )
-                    # Also break sleep into chunks for responsiveness
-                    sleep_remaining = self.polling_interval
-                    while sleep_remaining > 0 and self.running:
-                        sleep_chunk = min(sleep_remaining, 1.0)
-                        await asyncio.sleep(sleep_chunk)
-                        sleep_remaining -= sleep_chunk
+                    try:
+                        await asyncio.sleep(self.polling_interval)
+                    except asyncio.CancelledError:
+                        logger.info("🛑 Sleep interrupted by cancellation")
+                        break
 
                 except Exception as e:
                     self.stats["connection_errors"] += 1
                     self.stats["last_error"] = str(e)
                     logger.error(f"❌ Error during monitoring: {e}")
                     logger.info("🔄 Will retry next interval...")
-                    # Also break sleep into chunks for responsiveness
-                    sleep_remaining = self.polling_interval
-                    while sleep_remaining > 0 and self.running:
-                        sleep_chunk = min(sleep_remaining, 1.0)
-                        await asyncio.sleep(sleep_chunk)
-                        sleep_remaining -= sleep_chunk
+                    try:
+                        await asyncio.sleep(self.polling_interval)
+                    except asyncio.CancelledError:
+                        logger.info("🛑 Sleep interrupted by cancellation")
+                        break
 
         except asyncio.CancelledError:
             logger.info("🛑 Monitoring cancelled")
+            raise  # Re-raise to properly handle cancellation
         finally:
             self.running = False
 
@@ -381,19 +382,21 @@ async def main():
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    # Setup signal handlers for graceful shutdown
     monitor = None
-    monitoring_task = None
+    
+    # Create shutdown event for proper asyncio integration
     shutdown_event = asyncio.Event()
-
-    def signal_handler(signum, frame):
+    
+    # Set up asyncio-compatible signal handling
+    def signal_handler():
         logger.info("🛑 Shutdown signal received...")
         shutdown_event.set()
-        if monitor:
-            monitor.running = False
-
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    
+    # Register signal handlers
+    if sys.platform != 'win32':
+        loop = asyncio.get_running_loop()
+        loop.add_signal_handler(signal.SIGINT, signal_handler)
+        loop.add_signal_handler(signal.SIGTERM, signal_handler)
 
     try:
         # Create configuration
@@ -425,27 +428,41 @@ async def main():
         try:
             await monitor.setup()
             
-            # Create monitoring task so we can cancel it
+            # Create monitoring task
             monitoring_task = asyncio.create_task(monitor.run_monitoring())
+            shutdown_task = asyncio.create_task(shutdown_event.wait())
             
             # Wait for either monitoring to complete or shutdown signal
-            done, pending = await asyncio.wait(
-                [monitoring_task, asyncio.create_task(shutdown_event.wait())],
-                return_when=asyncio.FIRST_COMPLETED
-            )
+            try:
+                done, pending = await asyncio.wait(
+                    [monitoring_task, shutdown_task],
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                
+                # Cancel any remaining tasks
+                for task in pending:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+                
+                # If monitoring task completed, check for exceptions
+                if monitoring_task in done:
+                    try:
+                        await monitoring_task
+                    except asyncio.CancelledError:
+                        logger.info("🛑 Monitoring task cancelled")
+                    except Exception as e:
+                        logger.error(f"❌ Monitoring task failed: {e}")
+                        return False
             
-            # Cancel any remaining tasks
-            for task in pending:
-                task.cancel()
+            except asyncio.CancelledError:
+                logger.info("🛑 Main task cancelled")
+                # Cancel monitoring task
+                monitoring_task.cancel()
                 try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-            
-            # If monitoring task completed, get its result
-            if monitoring_task in done:
-                try:
-                    await monitoring_task  # This will raise if there was an exception
+                    await monitoring_task
                 except asyncio.CancelledError:
                     pass
             
@@ -456,14 +473,6 @@ async def main():
             logger.error(f"❌ Monitoring session failed: {e}")
             return False
         finally:
-            # Ensure monitoring task is cancelled
-            if monitoring_task and not monitoring_task.done():
-                monitoring_task.cancel()
-                try:
-                    await monitoring_task
-                except asyncio.CancelledError:
-                    pass
-            
             await monitor.cleanup()
 
     except KeyboardInterrupt:

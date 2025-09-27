@@ -351,30 +351,29 @@ class NaviLinkDevice:
     async def get_connectivity_status(self) -> Dict[str, Any]:
         """
         Check device connectivity status.
+        
+        Note: The official connectivity-status endpoint requires AWS signature v4 
+        authentication which is complex to implement. This method uses a simple
+        MQTT connection check as a connectivity test instead.
 
         Returns:
             Dictionary containing connectivity information
         """
         try:
-            async with self._session.get(
-                f"{self._client.config.base_url}/device/connectivity-status",
-                params={"macAddress": self.mac_address, "deviceType": self.device_type},
-                headers=self._client._auth.get_auth_headers(),
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data
-                else:
-                    logger.warning(
-                        f"Connectivity check failed with status {response.status}"
-                    )
-                    return {"device_connected": 0}
-
+            logger.debug("Testing device connectivity via MQTT connection check...")
+            
+            # Try to connect if not already connected
+            if not self._connected:
+                await self.connect()
+                
+            # Check MQTT connection status
+            if self._mqtt and self._mqtt.is_connected:
+                return {"device_connected": 1, "status": "mqtt_connected"}
+            else:
+                return {"device_connected": 0, "status": "mqtt_not_connected"}
+                
         except Exception as e:
-            logger.error(
-                f"Failed to check connectivity for device {self.mac_address}: {e}"
-            )
-            # Return default offline status if connectivity check fails
+            logger.warning(f"Device connectivity check failed: {e}")
             return {"device_connected": 0, "error": str(e)}
 
     def add_status_callback(self, callback: Callable[[DeviceStatus], None]):
