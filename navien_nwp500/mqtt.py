@@ -85,11 +85,11 @@ class NaviLinkMQTT:
         self._message_count = 0
         self._last_message_time: float = 0.0
         self._connection_start_time: float = 0.0
-        self._statistics = {
+        self._statistics: Dict[str, Any] = {
             "messages_received": 0,
             "messages_sent": 0,
             "reconnection_count": 0,
-            "uptime_seconds": 0,
+            "uptime_seconds": 0.0,  # Ensure this is float
         }
 
         # Topic patterns from navien_nwp500_api analysis
@@ -121,8 +121,8 @@ class NaviLinkMQTT:
     def statistics(self) -> Dict[str, Any]:
         """Get connection and message statistics."""
         stats = self._statistics.copy()
-        if self._connection_start_time > 0:
-            stats["uptime_seconds"] = time.time() - self._connection_start_time
+        if self._connection_start_time > 0.0:
+            stats["uptime_seconds"] = float(time.time() - self._connection_start_time)
         return stats
 
     async def connect(self, enable_auto_reconnect: bool = True):

@@ -374,7 +374,8 @@ class NaviLinkDevice:
             logger.error(
                 f"Failed to check connectivity for device {self.mac_address}: {e}"
             )
-            return {"device_connected": 0}
+            # Return default offline status if connectivity check fails
+            return {"device_connected": 0, "error": str(e)}
 
     def add_status_callback(self, callback: Callable[[DeviceStatus], None]):
         """
