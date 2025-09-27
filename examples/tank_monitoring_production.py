@@ -143,6 +143,11 @@ class TankMonitor:
                 f"🏠 Using device: {self.device.name} (MAC: {self.device.mac_address})"
             )
 
+            # Connect device for MQTT monitoring (this was missing!)
+            logger.info("🔌 Connecting to device for real-time monitoring...")
+            await self.device.connect()
+            logger.info("✅ Device connection established")
+
             return True
 
         except Exception as e:
@@ -234,25 +239,14 @@ class TankMonitor:
                             logger.info("⏰ Duration limit reached, stopping...")
                             break
 
-                    # Check device connectivity before attempting status request
-                    # Using improved MQTT-based connectivity check
-                    connectivity = await self.device.get_connectivity_status()
-                    if not connectivity or not connectivity.get("device_connected"):
-                        self.stats["device_offline_count"] += 1
-                        logger.warning(
-                            f"📴 Device offline ({connectivity.get('status', 'unknown')}) - skipping this interval"
-                        )
-                        try:
-                            await asyncio.sleep(self.polling_interval)
-                        except asyncio.CancelledError:
-                            logger.info("🛑 Sleep interrupted by cancellation")
-                            break
-                        continue
-
-                    # Get device status
-                    status = await self.device.get_status()
+                    # Get device status (force fresh data, not cached)
+                    status = await self.device.get_status(use_cache=False)
                     if status:
                         await self._log_data_point(status)
+                        self.stats["updates_received"] += 1
+                        
+                        # Log current status
+                        logger.info(f"📊 Tank: {status.dhw_charge_per}% | Temp: {status.dhw_temperature}°F | Mode: {status.operation_mode} | Power: {status.current_inst_power}W")
                     else:
                         logger.warning("⚠️ No status data received")
 

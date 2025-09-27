@@ -2,7 +2,7 @@
 """
 Quick Control Test
 
-Test the new control functionality with a real device.
+Test the control functionality with a real device.
 """
 
 import asyncio

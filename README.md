@@ -14,7 +14,7 @@ Control and monitor your Navien NWP500 Heat Pump Water Heater remotely using Pyt
 - **⚡ Async/Await Support**: Built for modern Python with full async support
 - **🏠 Home Assistant Ready**: Perfect for creating custom Home Assistant integrations
 - **📈 Data Export**: Built-in CSV logging for long-term analysis
-- **🔒 Production Ready**: Comprehensive error handling and connection recovery
+- **🔒 Error Handling**: Error handling and connection recovery
 
 ## Installation
 
