@@ -28,20 +28,20 @@ Usage:
     python examples/tank_monitoring_production.py --debug
 """
 
-import asyncio
 import argparse
-import logging
+import asyncio
 import csv
+import json
+import logging
+import os
 import signal
 import sys
-import os
-import json
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 from navien_nwp500 import NaviLinkClient, NaviLinkConfig, ReconnectConfig
-from navien_nwp500.exceptions import NaviLinkError, DeviceOfflineError, DeviceError
+from navien_nwp500.exceptions import DeviceError, DeviceOfflineError, NaviLinkError
 from navien_nwp500.models import DeviceStatus
 
 # Set up logging
@@ -244,9 +244,11 @@ class TankMonitor:
                     if status:
                         await self._log_data_point(status)
                         self.stats["updates_received"] += 1
-                        
+
                         # Log current status
-                        logger.info(f"📊 Tank: {status.dhw_charge_per}% | Temp: {status.dhw_temperature}°F | Mode: {status.operation_mode} | Power: {status.current_inst_power}W")
+                        logger.info(
+                            f"📊 Tank: {status.dhw_charge_per}% | Temp: {status.dhw_temperature}°F | Mode: {status.operation_mode} | Power: {status.current_inst_power}W"
+                        )
                     else:
                         logger.warning("⚠️ No status data received")
 

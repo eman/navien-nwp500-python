@@ -26,8 +26,7 @@ import sys
 from datetime import datetime
 
 from navien_nwp500 import NaviLinkClient, NaviLinkConfig
-from navien_nwp500.exceptions import NaviLinkError, DeviceError
-
+from navien_nwp500.exceptions import DeviceError, NaviLinkError
 
 # DHW Mode constants for clarity
 DHW_MODES = {
@@ -67,9 +66,7 @@ class DeviceControlDemo:
             raise DeviceError("No devices found")
 
         self.device = devices[0]
-        print(
-            f"🏠 Using device: {self.device.name} (MAC: {self.device.mac_address})"
-        )
+        print(f"🏠 Using device: {self.device.name} (MAC: {self.device.mac_address})")
 
         # Check connectivity
         connectivity = await self.device.get_connectivity_status()
@@ -130,9 +127,7 @@ class DeviceControlDemo:
         # Interactive mode selection
         print(
             "\n"
-            + "⚠️ CAUTION: This will change your water heater settings! ⚠️".center(
-                60
-            )
+            + "⚠️ CAUTION: This will change your water heater settings! ⚠️".center(60)
         )
 
         while True:
@@ -208,17 +203,13 @@ class DeviceControlDemo:
 
         print(
             "\n"
-            + "⚠️ CAUTION: This will change your water heater temperature! ⚠️".center(
-                60
-            )
+            + "⚠️ CAUTION: This will change your water heater temperature! ⚠️".center(60)
         )
 
         while True:
             try:
                 response = (
-                    input(
-                        f"\nEnter new temperature (70-131°F) or 'skip' to skip: "
-                    )
+                    input(f"\nEnter new temperature (70-131°F) or 'skip' to skip: ")
                     .strip()
                     .lower()
                 )
@@ -239,9 +230,7 @@ class DeviceControlDemo:
                 continue
 
         # Confirm the change
-        print(
-            f"\n🔄 Changing temperature from {original_temp}°F to {new_temp}°F"
-        )
+        print(f"\n🔄 Changing temperature from {original_temp}°F to {new_temp}°F")
         confirm = input("Type 'yes' to confirm: ").strip().lower()
 
         if confirm != "yes":
@@ -257,17 +246,13 @@ class DeviceControlDemo:
             print(f"📋 Response: {result}")
 
             # Wait for change to take effect
-            print(
-                "⏳ Waiting 10 seconds for temperature change to take effect..."
-            )
+            print("⏳ Waiting 10 seconds for temperature change to take effect...")
             await asyncio.sleep(10)
 
             # Check new status
             new_status = await self.get_current_status()
             if new_status and new_status.dhw_temperature_setting == new_temp:
-                print(
-                    f"✅ Temperature change confirmed! New target: {new_temp}°F"
-                )
+                print(f"✅ Temperature change confirmed! New target: {new_temp}°F")
             else:
                 print(
                     f"⚠️ Temperature change may not have taken effect yet. Current target: {new_status.dhw_temperature_setting if new_status else 'Unknown'}°F"
@@ -285,9 +270,7 @@ class DeviceControlDemo:
         print("• turn_on(): Sets device to Hybrid mode (efficient)")
         print("• turn_off(): Sets device to Energy Saver mode")
 
-        choice = (
-            input("\nDemonstrate turn_on() method? (yes/no): ").strip().lower()
-        )
+        choice = input("\nDemonstrate turn_on() method? (yes/no): ").strip().lower()
         if choice == "yes":
             try:
                 print("🔄 Calling turn_on()...")
@@ -296,11 +279,7 @@ class DeviceControlDemo:
             except Exception as e:
                 print(f"❌ Turn on failed: {e}")
 
-        choice = (
-            input("\nDemonstrate turn_off() method? (yes/no): ")
-            .strip()
-            .lower()
-        )
+        choice = input("\nDemonstrate turn_off() method? (yes/no): ").strip().lower()
         if choice == "yes":
             try:
                 print("🔄 Calling turn_off()...")
@@ -330,9 +309,7 @@ class DeviceControlDemo:
         await self.get_current_status()
 
         print("\n✅ Device Control Demonstration Complete!")
-        print(
-            "💡 For production monitoring, see tank_monitoring_production.py"
-        )
+        print("💡 For production monitoring, see tank_monitoring_production.py")
 
     async def cleanup(self):
         """Clean up resources."""
@@ -354,9 +331,7 @@ async def main():
         # Validate configuration
         if not config.email or not config.password:
             print("❌ Configuration Error: Email and password required")
-            print(
-                "💡 Please copy .env.template to .env and configure credentials"
-            )
+            print("💡 Please copy .env.template to .env and configure credentials")
             sys.exit(1)
 
         # Run demonstration

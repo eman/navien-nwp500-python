@@ -20,9 +20,9 @@ Usage:
     python examples/basic_usage.py --email user@example.com --password yourpassword
 """
 
+import argparse
 import asyncio
 import logging
-import argparse
 import sys
 from pathlib import Path
 
@@ -39,14 +39,10 @@ logger = logging.getLogger(__name__)
 
 async def main():
     """Main function demonstrating basic NaviLink usage."""
-    parser = argparse.ArgumentParser(
-        description="NaviLink Basic Usage Example"
-    )
+    parser = argparse.ArgumentParser(description="NaviLink Basic Usage Example")
     parser.add_argument("--email", help="NaviLink account email")
     parser.add_argument("--password", help="NaviLink account password")
-    parser.add_argument(
-        "--debug", action="store_true", help="Enable debug logging"
-    )
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     args = parser.parse_args()
 
@@ -71,9 +67,7 @@ async def main():
                 logger.error(
                     "  2. Set NAVILINK_EMAIL and NAVILINK_PASSWORD environment variables"
                 )
-                logger.error(
-                    "  3. Use --email and --password command line arguments"
-                )
+                logger.error("  3. Use --email and --password command line arguments")
                 return False
 
         # Validate configuration
@@ -105,15 +99,11 @@ async def main():
                     if status:
                         logger.info("✅ Device status retrieved successfully")
                         logger.info(f"   DHW Charge: {status.dhw_charge_per}%")
-                        logger.info(
-                            f"   DHW Temperature: {status.dhw_temperature}°F"
-                        )
+                        logger.info(f"   DHW Temperature: {status.dhw_temperature}°F")
                         logger.info(
                             f"   Target Temperature: {status.dhw_temperature_setting}°F"
                         )
-                        logger.info(
-                            f"   Operation Mode: {status.operation_mode}"
-                        )
+                        logger.info(f"   Operation Mode: {status.operation_mode}")
                         logger.info(
                             f"   Power Consumption: {status.current_inst_power}W"
                         )
