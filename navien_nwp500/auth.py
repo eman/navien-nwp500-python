@@ -98,6 +98,8 @@ class NaviLinkAuth:
 
                 # Parse user info from response
                 self._user_info = self._parse_user_info(data)
+                self._authenticated_at = datetime.now()
+
                 return self._user_info
 
         except aiohttp.ClientError as e:
