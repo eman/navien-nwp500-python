@@ -126,9 +126,7 @@ class TankMonitor:
 
         try:
             logger.info("🔐 Authenticating...")
-            await self.client.authenticate(
-                self.config.email, self.config.password
-            )
+            await self.client.authenticate(self.config.email, self.config.password)
             logger.info("✅ Authentication successful")
 
             # Get devices
@@ -221,9 +219,7 @@ class TankMonitor:
             f"⏱️ Polling interval: {self.polling_interval} seconds ({self.polling_interval/60:.1f} minutes)"
         )
         if self.duration_minutes:
-            end_time = self.start_time + timedelta(
-                minutes=self.duration_minutes
-            )
+            end_time = self.start_time + timedelta(minutes=self.duration_minutes)
             logger.info(f"⏰ Will run until: {end_time}")
         else:
             logger.info("♾️ Duration: indefinite (until interrupted)")
@@ -234,13 +230,8 @@ class TankMonitor:
                     # Check if duration exceeded
                     if self.duration_minutes:
                         elapsed = datetime.now() - self.start_time
-                        if (
-                            elapsed.total_seconds() / 60
-                            >= self.duration_minutes
-                        ):
-                            logger.info(
-                                "⏰ Duration limit reached, stopping..."
-                            )
+                        if elapsed.total_seconds() / 60 >= self.duration_minutes:
+                            logger.info("⏰ Duration limit reached, stopping...")
                             break
 
                     # Check device connectivity before attempting status request
@@ -274,9 +265,7 @@ class TankMonitor:
 
                 except DeviceOfflineError:
                     self.stats["device_offline_count"] += 1
-                    logger.warning(
-                        "📴 Device is offline, will retry next interval"
-                    )
+                    logger.warning("📴 Device is offline, will retry next interval")
                     try:
                         await asyncio.sleep(self.polling_interval)
                     except asyncio.CancelledError:
@@ -306,12 +295,8 @@ class TankMonitor:
             runtime = datetime.now() - self.start_time
             logger.info("🏁 Final Session Summary:")
             logger.info(f"   Total Runtime: {runtime}")
-            logger.info(
-                f"   Status Updates Received: {self.stats['updates_received']}"
-            )
-            logger.info(
-                f"   Connection Errors: {self.stats['connection_errors']}"
-            )
+            logger.info(f"   Status Updates Received: {self.stats['updates_received']}")
+            logger.info(f"   Connection Errors: {self.stats['connection_errors']}")
             logger.info(
                 f"   Device Offline Count: {self.stats['device_offline_count']}"
             )
@@ -325,7 +310,7 @@ class TankMonitor:
     async def cleanup(self):
         """Cleanup resources."""
         logger.info("🧹 Cleaning up resources...")
-        
+
         # Disconnect device first if connected
         if hasattr(self, "device") and self.device:
             try:
@@ -333,7 +318,7 @@ class TankMonitor:
                 await self.device.disconnect()
             except Exception as e:
                 logger.warning(f"Error disconnecting device: {e}")
-        
+
         # Close client session
         if hasattr(self, "client") and self.client:
             try:
@@ -341,22 +326,16 @@ class TankMonitor:
                 await self.client.close()
             except Exception as e:
                 logger.warning(f"Error closing client: {e}")
-        
+
         self._log_session_summary()
         logger.info("✅ Cleanup completed")
 
 
 async def main():
     """Main function."""
-    parser = argparse.ArgumentParser(
-        description="Production NaviLink Tank Monitor"
-    )
-    parser.add_argument(
-        "--email", help="NaviLink account email (overrides env)"
-    )
-    parser.add_argument(
-        "--password", help="NaviLink account password (overrides env)"
-    )
+    parser = argparse.ArgumentParser(description="Production NaviLink Tank Monitor")
+    parser.add_argument("--email", help="NaviLink account email (overrides env)")
+    parser.add_argument("--password", help="NaviLink account password (overrides env)")
     parser.add_argument(
         "--interval",
         type=int,
@@ -373,9 +352,7 @@ async def main():
         default="tank_data_production.csv",
         help="Output CSV file (default: tank_data_production.csv)",
     )
-    parser.add_argument(
-        "--debug", action="store_true", help="Enable debug logging"
-    )
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     args = parser.parse_args()
 
@@ -383,17 +360,17 @@ async def main():
         logging.getLogger().setLevel(logging.DEBUG)
 
     monitor = None
-    
+
     # Create shutdown event for proper asyncio integration
     shutdown_event = asyncio.Event()
-    
+
     # Set up asyncio-compatible signal handling
     def signal_handler():
         logger.info("🛑 Shutdown signal received...")
         shutdown_event.set()
-    
+
     # Register signal handlers
-    if sys.platform != 'win32':
+    if sys.platform != "win32":
         loop = asyncio.get_running_loop()
         loop.add_signal_handler(signal.SIGINT, signal_handler)
         loop.add_signal_handler(signal.SIGTERM, signal_handler)
@@ -427,18 +404,18 @@ async def main():
 
         try:
             await monitor.setup()
-            
+
             # Create monitoring task
             monitoring_task = asyncio.create_task(monitor.run_monitoring())
             shutdown_task = asyncio.create_task(shutdown_event.wait())
-            
+
             # Wait for either monitoring to complete or shutdown signal
             try:
                 done, pending = await asyncio.wait(
                     [monitoring_task, shutdown_task],
-                    return_when=asyncio.FIRST_COMPLETED
+                    return_when=asyncio.FIRST_COMPLETED,
                 )
-                
+
                 # Cancel any remaining tasks
                 for task in pending:
                     task.cancel()
@@ -446,7 +423,7 @@ async def main():
                         await task
                     except asyncio.CancelledError:
                         pass
-                
+
                 # If monitoring task completed, check for exceptions
                 if monitoring_task in done:
                     try:
@@ -456,7 +433,7 @@ async def main():
                     except Exception as e:
                         logger.error(f"❌ Monitoring task failed: {e}")
                         return False
-            
+
             except asyncio.CancelledError:
                 logger.info("🛑 Main task cancelled")
                 # Cancel monitoring task
@@ -465,7 +442,7 @@ async def main():
                     await monitoring_task
                 except asyncio.CancelledError:
                     pass
-            
+
             logger.info("🏁 Monitoring completed successfully")
             return True
 
