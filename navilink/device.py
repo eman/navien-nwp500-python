@@ -143,86 +143,153 @@ class NaviLinkDevice:
             logger.error(f"Failed to get status for device {self.mac_address}: {e}")
             raise DeviceError(f"Failed to get device status: {e}")
     
-    async def set_temperature(self, temperature: int) -> bool:
+    async def set_temperature(self, temperature: int) -> Dict[str, Any]:
         """
-        Set target water temperature.
+        Set target DHW temperature.
         
         Args:
-            temperature: Target temperature in Fahrenheit (typically 80-140°F)
+            temperature: Target temperature in Fahrenheit (70-131°F per device specs)
             
         Returns:
-            bool: True if command was sent successfully
+            Control command result
             
         Raises:
-            DeviceError: If failed to send command or device not connected
-            ValueError: If temperature is out of valid range
+            DeviceError: If temperature is out of range or control fails
         """
-        # Validate temperature range (typical water heater range)
-        if not 80 <= temperature <= 140:
-            raise ValueError(f"Temperature {temperature}°F is outside valid range (80-140°F)")
+        # Use actual device range from device info response
+        if not 70 <= temperature <= 131:
+            raise ValueError(f"Temperature {temperature}°F out of range (70-131°F)")
             
-        if not self._connected:
-            await self.connect()
-            
-        try:
-            # Use MQTT to send temperature setting command
-            # Command structure based on NaviLink protocol analysis
-            if self._mqtt:
-                # Temperature setting command (to be implemented based on protocol)
-                logger.info(f"Setting temperature to {temperature}°F for device {self.mac_address}")
-                
-                # For now, this is a placeholder - the actual MQTT command structure
-                # would need to be determined through protocol analysis
-                # The command would likely be similar to status commands but with different payload
-                
-                # TODO: Implement actual temperature setting MQTT command
-                logger.warning("Temperature setting not yet fully implemented - placeholder only")
-                return True
-            else:
-                raise DeviceError("MQTT connection required for device control")
-                
-        except Exception as e:
-            logger.error(f"Failed to set temperature for device {self.mac_address}: {e}")
-            raise DeviceError(f"Failed to set temperature: {e}")
+        logger.info(f"Setting temperature to {temperature}°F for device {self.mac_address}")
+        
+        # Temperature control command (inferred from protocol analysis)
+        control_data = {
+            "command": 33554438,  # Temperature command (estimated from pattern)
+            "mode": "dhw-temp-setting",
+            "param": [temperature],
+            "paramStr": ""
+        }
+        
+        return await self._send_control_command(control_data)
     
-    async def set_operation_mode(self, mode: int) -> bool:
+    async def set_operation_mode(self, mode: int) -> Dict[str, Any]:
         """
         Set operation mode for heat pump water heater.
+        
+        **DEPRECATED**: Use set_dhw_mode() instead for actual DHW mode control.
         
         Args:
             mode: Operation mode (0=Off, 32=Heat Pump, 33=Electric, 34=Hybrid)
             
         Returns:
-            bool: True if command was sent successfully
+            Control command result
             
         Raises:
             DeviceError: If failed to send command or device not connected
             ValueError: If mode is not valid
         """
-        valid_modes = [0, 32, 33, 34]
-        if mode not in valid_modes:
-            raise ValueError(f"Mode {mode} is not valid. Valid modes: {valid_modes}")
+        logger.warning("set_operation_mode() is deprecated. Use set_dhw_mode() for actual control.")
+        
+        # Map old modes to new DHW modes
+        mode_mapping = {
+            0: 2,   # Off -> Heat Pump Only (closest equivalent)
+            32: 2,  # Heat Pump -> Heat Pump Only  
+            33: 4,  # Electric -> Electric Only
+            34: 3   # Hybrid -> Hybrid
+        }
+        
+        if mode not in mode_mapping:
+            raise ValueError(f"Mode {mode} not supported. Use set_dhw_mode() instead.")
             
+        new_mode = mode_mapping[mode]
+        logger.info(f"Mapping old mode {mode} to DHW mode {new_mode}")
+        
+        return await self.set_dhw_mode(new_mode)
+
+    async def set_dhw_mode(self, mode: int) -> Dict[str, Any]:
+        """
+        Set DHW (Domestic Hot Water) operation mode.
+        
+        Based on HAR analysis, the actual DHW modes are:
+        - 2: Heat Pump Only (eco mode)
+        - 3: Hybrid (heat pump + electric backup)
+        - 4: Electric Only (resistance heating)
+        - 5: Energy Saver mode
+        - 6: High Demand mode
+        
+        Args:
+            mode: DHW mode (2-6)
+            
+        Returns:
+            Control command result
+            
+        Raises:
+            DeviceError: If control command fails
+        """
+        if mode not in [2, 3, 4, 5, 6]:
+            raise ValueError(f"Invalid DHW mode: {mode}. Valid modes are 2-6.")
+            
+        logger.info(f"Setting DHW mode to {mode} for device {self.mac_address}")
+        
+        # Control command from HAR analysis: 33554437 for DHW mode
+        control_data = {
+            "command": 33554437,
+            "mode": "dhw-mode", 
+            "param": [mode],
+            "paramStr": ""
+        }
+        
+        return await self._send_control_command(control_data)
+
+    async def _send_control_command(self, control_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Send control command via MQTT.
+        
+        Args:
+            control_data: Control command parameters
+            
+        Returns:
+            Command response
+            
+        Raises:
+            DeviceError: If command fails
+        """
         if not self._connected:
             await self.connect()
             
         try:
-            if self._mqtt:
-                logger.info(f"Setting operation mode to {mode} for device {self.mac_address}")
-                
-                # Mode descriptions for logging
-                mode_names = {0: "Off/Standby", 32: "Heat Pump", 33: "Electric Only", 34: "Hybrid"}
-                logger.info(f"Target mode: {mode_names.get(mode, f'Unknown ({mode})')}")
-                
-                # TODO: Implement actual operation mode setting MQTT command
-                logger.warning("Operation mode setting not yet fully implemented - placeholder only")
-                return True
-            else:
+            if not self._mqtt:
                 raise DeviceError("MQTT connection required for device control")
-                
+            
+            # Send control command via MQTT
+            result = await self._mqtt.send_control_command(control_data)
+            logger.info(f"Control command sent successfully: {control_data['command']}")
+            
+            return result
+            
         except Exception as e:
-            logger.error(f"Failed to set operation mode for device {self.mac_address}: {e}")
-            raise DeviceError(f"Failed to set operation mode: {e}")
+            logger.error(f"Control command failed: {e}")
+            raise DeviceError(f"Failed to send control command: {e}")
+
+    async def turn_on(self) -> Dict[str, Any]:
+        """
+        Turn on the water heater in Hybrid mode.
+        
+        Returns:
+            Control command result
+        """
+        logger.info(f"Turning on device {self.mac_address}")
+        return await self.set_dhw_mode(3)  # Default to Hybrid mode
+
+    async def turn_off(self) -> Dict[str, Any]:
+        """
+        Set water heater to energy-saving mode (closest to "off").
+        
+        Returns:
+            Control command result
+        """
+        logger.info(f"Setting device {self.mac_address} to energy saver mode")
+        return await self.set_dhw_mode(5)  # Energy Saver mode
     
     async def get_reservations(self) -> List[Reservation]:
         """

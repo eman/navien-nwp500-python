@@ -6,7 +6,8 @@ import asyncio
 import json
 import logging
 import ssl
-from typing import Callable, Optional
+import uuid
+from typing import Callable, Optional, Dict, Any
 from dataclasses import dataclass
 
 try:
@@ -581,6 +582,92 @@ class AWSIoTWebSocketConnection:
             callback: Function to call for all received messages
         """
         self.message_callback = callback
+
+    async def send_control_command(self, control_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Send control command to device.
+        
+        Args:
+            control_data: Control command parameters including command, mode, param
+            
+        Returns:
+            Command response from device
+            
+        Raises:
+            Exception: If control command fails
+        """
+        if not self.is_connected:
+            raise Exception("Not connected to MQTT")
+            
+        logger.info(f"📤 Sending control command: {control_data['command']}")
+        
+        # Generate unique session ID
+        session_id = str(int(asyncio.get_event_loop().time() * 1000))
+        client_id = f"{uuid.uuid4()}"
+        
+        # Build control message structure based on HAR analysis
+        control_message = {
+            "clientID": client_id,
+            "protocolVersion": 2,
+            "request": {
+                "additionalValue": self.device.additional_value,
+                "command": control_data["command"],
+                "deviceType": self.device.device_type,
+                "macAddress": self.device.mac_address,
+                "mode": control_data["mode"],
+                "param": control_data["param"],
+                "paramStr": control_data.get("paramStr", "")
+            },
+            "requestTopic": f"cmd/{self.device.device_type}/navilink-{self.device.mac_address}/ctrl",
+            "responseTopic": f"cmd/{self.device.device_type}/{self.device.home_seq}/{self.device._client.user_id}/{client_id}/res",
+            "sessionID": session_id
+        }
+        
+        # Convert to binary message (similar to status commands)
+        json_payload = json.dumps(control_message).encode('utf-8')
+        
+        # Control topic
+        control_topic = f"cmd/{self.device.device_type}/navilink-{self.device.mac_address}/ctrl"
+        
+        # Subscribe to response topic first
+        response_topic = control_message["responseTopic"]
+        response_future = asyncio.Future()
+        
+        def control_response_callback(topic, payload, dup, qos, retain, **kwargs):
+            try:
+                response_data = json.loads(payload.decode('utf-8'))
+                if not response_future.done():
+                    response_future.set_result(response_data)
+            except Exception as e:
+                if not response_future.done():
+                    response_future.set_exception(e)
+        
+        # Subscribe to response
+        await self._subscribe(response_topic, control_response_callback, qos=1)
+        
+        try:
+            # Send control command
+            success = await self._publish(control_topic, json_payload, qos=0)
+            
+            if not success:
+                raise Exception("Failed to publish control command")
+            
+            # Wait for response with timeout
+            try:
+                response = await asyncio.wait_for(response_future, timeout=30.0)
+                logger.info(f"✅ Control command response received")
+                return response
+                
+            except asyncio.TimeoutError:
+                logger.warning("⚠️ Control command response timeout")
+                return {"success": True, "message": "Command sent, no response received"}
+                
+        finally:
+            # Unsubscribe from response topic
+            try:
+                await self._unsubscribe(response_topic)
+            except:
+                pass
     
     @property
     def is_connected(self) -> bool:

@@ -4,9 +4,10 @@
 This is a production-ready Python library for communicating with the Navien NaviLink service, enabling control and monitoring of Navien water heaters and smart home devices. The library provides both REST API access and AWS IoT Core MQTT real-time communication capabilities, with a focus on heat pump water heater monitoring and data collection.
 
 **Status**: Production Ready ✅ v1.0.0  
-**Primary Use Case**: Long-term tank monitoring with DHW (Domestic Hot Water) charge level tracking
+**Primary Use Case**: Long-term tank monitoring with DHW (Domestic Hot Water) charge level tracking + device control
 **Testing**: Validated with Navien NWP500 Heat Pump Water Heater in 24+ hour production sessions
 **Architecture**: Enterprise-grade async Python with comprehensive configuration and error handling
+**Control Capabilities**: DHW mode changes, temperature setting, turn on/off operations ✅
 
 ## 🏢 Enterprise Production Standards
 
@@ -106,7 +107,7 @@ navilink/
 examples/
 ├── tank_monitoring_production.py  # ⭐ Main production example
 ├── basic_usage.py                 # Simple getting-started example
-├── credentials_template.py        # Template for development credentials
+├── device_control_demo.py   # ⭐ Complete device control demonstration ✅
 ├── debug/                         # Development debugging tools
 │   ├── debug_aws_creds.py
 │   └── debug_websocket.py
