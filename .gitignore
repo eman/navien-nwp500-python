@@ -208,5 +208,9 @@ __marimo__/
 
 # NaviLink specific
 credentials.py
-tank_data_*.csv
-*.log
+tank_data*.csv
+*_data*.csv
+debug_*.log
+*.har
+*_output.txt
+test_output_*.json

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .aws_iot_websocket import AWSIoTWebSocketConnection
+from .config import ReconnectConfig
 from .models import DeviceStatus, Reservation, EnergyUsage
 from .exceptions import WebSocketError, MQTTError, CommunicationError
 
@@ -23,15 +24,6 @@ class ConnectionState(Enum):
     CONNECTED = "connected"
     RECONNECTING = "reconnecting"
     FAILED = "failed"
-
-@dataclass
-class ReconnectConfig:
-    """Configuration for reconnection logic."""
-    max_retries: int = 10
-    initial_delay: float = 1.0
-    max_delay: float = 60.0
-    backoff_multiplier: float = 2.0
-    jitter: bool = True
 
 class NaviLinkMQTT:
     """Enhanced MQTT handler with MQTT5 support, connection monitoring, and resilience."""
