@@ -1,9 +1,9 @@
 """
-NaviLink Python Library
+Navien NWP500 Python Library
 
-A production-ready Python library for communicating with the Navien NaviLink service.
-Provides both REST API access and AWS IoT Core MQTT real-time communication capabilities
-with a focus on heat pump water heater monitoring and data collection.
+A production-ready Python library for communicating with Navien NWP500 Heat Pump Water Heaters
+via the NaviLink service. Provides both REST API access and AWS IoT Core MQTT real-time 
+communication capabilities with a focus on heat pump water heater monitoring and data collection.
 
 Status: Production Ready ✅
 Primary Use Case: Long-term tank monitoring with DHW (Domestic Hot Water) charge level tracking  
@@ -27,8 +27,14 @@ from .exceptions import (
     DeviceOfflineError,
 )
 
-__version__ = "1.0.0"
-__author__ = "Emmanuel Jarvis"
+# Dynamic version from setuptools-scm
+try:
+    from ._version import __version__
+except ImportError:
+    # Fallback version for development installations
+    __version__ = "0.0.0+unknown"
+
+__author__ = "Emmanuel Levijarvi"
 
 __all__ = [
     # Core Classes
