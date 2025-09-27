@@ -40,9 +40,9 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from pathlib import Path
 
-from navilink import NaviLinkClient, NaviLinkConfig, ReconnectConfig
-from navilink.exceptions import NaviLinkError, DeviceOfflineError, DeviceError
-from navilink.models import DeviceStatus
+from navien_nwp500 import NaviLinkClient, NaviLinkConfig, ReconnectConfig
+from navien_nwp500.exceptions import NaviLinkError, DeviceOfflineError, DeviceError
+from navien_nwp500.models import DeviceStatus
 
 # Set up logging
 logging.basicConfig(

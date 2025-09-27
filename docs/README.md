@@ -16,7 +16,7 @@ pip install navilink
 
 ```python
 import asyncio
-from navilink import NaviLinkClient, NaviLinkConfig
+from navien_nwp500 import NaviLinkClient, NaviLinkConfig
 
 async def main():
     # Configure from environment variables (recommended)
@@ -123,8 +123,8 @@ See [DEVICE_DATA_SCHEMA.md](DEVICE_DATA_SCHEMA.md) for complete field definition
 ### Tank Monitoring
 
 ```python
-from navilink import NaviLinkClient, NaviLinkConfig
-from navilink.aws_iot_websocket import ReconnectConfig
+from navien_nwp500 import NaviLinkClient, NaviLinkConfig
+from navien_nwp500.aws_iot_websocket import ReconnectConfig
 
 async def monitor_tank():
     config = NaviLinkConfig.from_environment()
@@ -164,7 +164,7 @@ async def monitor_tank():
 ### Error Handling
 
 ```python
-from navilink.exceptions import (
+from navien_nwp500.exceptions import (
     AuthenticationError,
     DeviceOfflineError, 
     CommunicationError

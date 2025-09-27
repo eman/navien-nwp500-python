@@ -126,7 +126,7 @@ docs/
 
 ### 2. Enterprise Configuration System ✅
 ```python
-from navilink import NaviLinkConfig, NaviLinkClient
+from navien_nwp500 import NaviLinkConfig, NaviLinkClient
 
 # Method 1: Environment variables (recommended for production)
 export NAVILINK_EMAIL="user@example.com"
@@ -358,8 +358,8 @@ tests/
 
 ### Example Usage (Production Code) ✅
 ```python
-from navilink import NaviLinkClient
-from navilink.aws_iot_websocket import ReconnectConfig
+from navien_nwp500 import NaviLinkClient
+from navien_nwp500.aws_iot_websocket import ReconnectConfig
 
 async def monitor_tank():
     """Production-ready tank monitoring example."""
@@ -532,8 +532,8 @@ tests/
 
 ### Example Usage (Production Code) ✅
 ```python
-from navilink import NaviLinkClient
-from navilink.aws_iot_websocket import ReconnectConfig
+from navien_nwp500 import NaviLinkClient
+from navien_nwp500.aws_iot_websocket import ReconnectConfig
 
 async def monitor_tank():
     """Production-ready tank monitoring example."""

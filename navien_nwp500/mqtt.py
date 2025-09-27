@@ -34,10 +34,10 @@ class ConnectionState(Enum):
 class NaviLinkMQTT:
     """Enhanced MQTT handler with MQTT5 support, connection monitoring, and resilience."""
 
-    # AWS IoT endpoint from navilink_api
+    # AWS IoT endpoint from navien_nwp500_api
     IOT_ENDPOINT = "a1t30mldyslmuq-ats.iot.us-east-1.amazonaws.com"
 
-    # MQTT command constants from navilink_api analysis
+    # MQTT command constants from navien_nwp500_api analysis
     CMD_GET_DEVICE_INFO = 16777217  # Get channel info (setup)
     CMD_GET_STATUS = 16777219  # Get device status (from HAR file)
     CMD_GET_RESERVATIONS = 16777222  # Get reservations
@@ -90,7 +90,7 @@ class NaviLinkMQTT:
             "uptime_seconds": 0,
         }
 
-        # Topic patterns from navilink_api analysis
+        # Topic patterns from navien_nwp500_api analysis
         self._command_topic_base = (
             f"cmd/{self._device.device_type}/navilink-{self._device.mac_address}"
         )
@@ -514,7 +514,7 @@ class NaviLinkMQTT:
         self, channel_data: Dict[str, Any]
     ) -> Optional[DeviceStatus]:
         """
-        Parse channel status from navilink_api format with enhanced DHW data.
+        Parse channel status from navien_nwp500_api format with enhanced DHW data.
 
         Args:
             channel_data: Channel status data

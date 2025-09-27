@@ -25,8 +25,8 @@ import logging
 import sys
 from datetime import datetime
 
-from navilink import NaviLinkClient, NaviLinkConfig
-from navilink.exceptions import NaviLinkError, DeviceError
+from navien_nwp500 import NaviLinkClient, NaviLinkConfig
+from navien_nwp500.exceptions import NaviLinkError, DeviceError
 
 
 # DHW Mode constants for clarity

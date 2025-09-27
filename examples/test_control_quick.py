@@ -8,8 +8,8 @@ Test the new control functionality with a real device.
 import asyncio
 import logging
 
-from navilink import NaviLinkClient, NaviLinkConfig
-from navilink.exceptions import NaviLinkError
+from navien_nwp500 import NaviLinkClient, NaviLinkConfig
+from navien_nwp500.exceptions import NaviLinkError
 
 
 async def test_control():

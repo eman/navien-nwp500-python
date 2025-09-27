@@ -26,8 +26,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from navilink import NaviLinkClient, NaviLinkConfig
-from navilink.exceptions import NaviLinkError
+from navien_nwp500 import NaviLinkClient, NaviLinkConfig
+from navien_nwp500.exceptions import NaviLinkError
 
 # Set up logging
 logging.basicConfig(

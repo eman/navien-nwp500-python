@@ -104,7 +104,7 @@ async def send_control_command(self, control_data: Dict[str, Any]) -> Dict[str, 
 
 ### Basic Control
 ```python
-from navilink import NaviLinkClient, NaviLinkConfig
+from navien_nwp500 import NaviLinkClient, NaviLinkConfig
 
 # Initialize
 config = NaviLinkConfig.from_environment()
