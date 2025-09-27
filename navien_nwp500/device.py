@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 import aiohttp
 
+from .config import ReconnectConfig
 from .exceptions import CommunicationError, DeviceError
 from .models import DeviceInfo, DeviceStatus, EnergyUsage, Reservation
 from .mqtt import NaviLinkMQTT
@@ -394,7 +395,9 @@ class NaviLinkDevice:
         if callback in self._status_callbacks:
             self._status_callbacks.remove(callback)
 
-    async def get_mqtt_connection(self, reconnect_config: Optional[ReconnectConfig] = None):
+    async def get_mqtt_connection(
+        self, reconnect_config: Optional[ReconnectConfig] = None
+    ):
         """
         Get the MQTT connection for this device, creating it if needed.
 

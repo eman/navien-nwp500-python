@@ -9,6 +9,8 @@ import time
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
+import aiohttp
+
 from .aws_iot_websocket import AWSIoTWebSocketConnection
 from .config import ReconnectConfig
 from .exceptions import MQTTError, WebSocketError
