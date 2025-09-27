@@ -28,7 +28,7 @@ jobs:
         fetch-depth: 0  # Full history for setuptools-scm
     
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     
@@ -60,7 +60,7 @@ jobs:
         fetch-depth: 0  # Full history for setuptools-scm
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.11"
     
@@ -78,7 +78,7 @@ jobs:
         twine check dist/*
     
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: dist
         path: dist/
@@ -104,12 +104,10 @@ jobs:
       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
     
     - name: Create Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: ncipollo/release-action@v1
       with:
-        tag_name: ${{ github.ref_name }}
-        release_name: NaviLink v${{ steps.version.outputs.VERSION }}
+        tag: ${{ github.ref_name }}
+        name: NaviLink v${{ steps.version.outputs.VERSION }}
         body: |
           # NaviLink v${{ steps.version.outputs.VERSION }} - Production Ready
           
@@ -167,16 +165,8 @@ jobs:
           **Full Changelog**: [v${{ steps.version.outputs.VERSION }}](https://github.com/eman/navien-nwp500-python/blob/main/CHANGELOG.md)
         draft: false
         prerelease: false
-    
-    - name: Upload Release Assets
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: dist/
-        asset_name: navien-nwp500-dist
-        asset_content_type: application/zip
+        artifacts: "dist/*"
+        token: ${{ secrets.GITHUB_TOKEN }}
 
   pypi-publish:
     needs: [build, github-release]
@@ -188,7 +178,7 @@ jobs:
     
     steps:
     - name: Download build artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: dist
         path: dist/
