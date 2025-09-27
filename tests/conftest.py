@@ -1,6 +1,7 @@
 """
 Pytest configuration and fixtures for the navien_nwp500 test suite.
 """
+
 import asyncio
 from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock
@@ -23,9 +24,7 @@ def event_loop():
 def mock_config() -> NaviLinkConfig:
     """Create a mock configuration for testing."""
     return NaviLinkConfig(
-        email="test@example.com",
-        password="test_password",
-        log_level="DEBUG"
+        email="test@example.com", password="test_password", log_level="DEBUG"
     )
 
 
@@ -40,7 +39,7 @@ def mock_device_data() -> Dict[str, Any]:
         "model_name": "NWP500",
         "device_connected": 1,
         "group_id": "test_group",
-        "location": "Test Location"
+        "location": "Test Location",
     }
 
 
@@ -62,11 +61,11 @@ def mock_device_status() -> Dict[str, Any]:
         "current_inst_power": 466,
         "tank_upper_temperature": 605,  # 60.5°F
         "tank_lower_temperature": 611,  # 61.1°F
-        "discharge_temperature": 761,   # 76.1°F
-        "ambient_temperature": 238,     # 23.8°F
+        "discharge_temperature": 761,  # 76.1°F
+        "ambient_temperature": 238,  # 23.8°F
         "outside_temperature": 0,
         "wifi_rssi": -45,
-        "device_connected": 1
+        "device_connected": 1,
     }
 
 
@@ -86,7 +85,7 @@ def mock_device_status_obj(mock_device_status) -> DeviceStatus:
 def mock_aiohttp_session():
     """Mock aiohttp session for HTTP requests."""
     session = AsyncMock()
-    
+
     # Mock successful authentication response
     auth_response = AsyncMock()
     auth_response.status = 200
@@ -96,33 +95,35 @@ def mock_aiohttp_session():
             "user_id": "test@example.com",
             "session_id": "mock_session_123",
             "access_key_id": "MOCK_ACCESS_KEY",
-            "secret_access_key": "MOCK_SECRET_KEY", 
+            "secret_access_key": "MOCK_SECRET_KEY",
             "session_token": "MOCK_SESSION_TOKEN",
-            "region": "us-east-1"
-        }
+            "region": "us-east-1",
+        },
     }
-    
+
     # Mock device list response
     device_response = AsyncMock()
     device_response.status = 200
     device_response.json.return_value = {
         "result": "success",
         "data": {
-            "device_list": [{
-                "device_id": "TEST123456",
-                "device_type": 52,
-                "mac_address": "AA:BB:CC:DD:EE:FF",
-                "device_name": "NWP500 Test",
-                "model_name": "NWP500",
-                "device_connected": 1,
-                "group_id": "test_group"
-            }]
-        }
+            "device_list": [
+                {
+                    "device_id": "TEST123456",
+                    "device_type": 52,
+                    "mac_address": "AA:BB:CC:DD:EE:FF",
+                    "device_name": "NWP500 Test",
+                    "model_name": "NWP500",
+                    "device_connected": 1,
+                    "group_id": "test_group",
+                }
+            ]
+        },
     }
-    
+
     session.post.return_value.__aenter__.return_value = auth_response
     session.get.return_value.__aenter__.return_value = device_response
-    
+
     return session
 
 
@@ -134,7 +135,7 @@ def mock_client(mock_config, mock_aiohttp_session) -> NaviLinkClient:
     return client
 
 
-@pytest.fixture 
+@pytest.fixture
 def mock_device(mock_client, mock_device_info) -> NaviLinkDevice:
     """Create a mock NaviLinkDevice."""
     return NaviLinkDevice(client=mock_client, device_info=mock_device_info)
@@ -144,7 +145,7 @@ def mock_device(mock_client, mock_device_info) -> NaviLinkDevice:
 def pytest_configure(config):
     config.addinivalue_line("markers", "integration: mark test as integration test")
     config.addinivalue_line("markers", "unit: mark test as unit test")
-    
+
 
 def pytest_collection_modifyitems(config, items):
     if config.getoption("--integration"):
@@ -158,8 +159,8 @@ def pytest_collection_modifyitems(config, items):
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--integration", 
-        action="store_true", 
-        default=False, 
-        help="run integration tests"
+        "--integration",
+        action="store_true",
+        default=False,
+        help="run integration tests",
     )

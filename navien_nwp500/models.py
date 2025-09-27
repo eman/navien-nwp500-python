@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 @dataclass
 class DeviceFeatures:
     """Device feature capabilities and specifications."""
+
     country_code: int
     model_type_code: int
     control_type_code: int
@@ -47,9 +48,11 @@ class DeviceFeatures:
     energy_saver_use: int
     high_demand_use: int
 
+
 @dataclass
 class DeviceStatus:
     """Current device status and sensor readings."""
+
     command: int
     outside_temperature: int
     special_function_status: int
@@ -139,21 +142,25 @@ class DeviceStatus:
     available_energy_capacity: int
     # Additional convenience fields for enhanced monitoring
     heat_pump_status: Optional[int] = 0  # Heat pump operational status
-    resistance_heater_status: Optional[int] = 0  # Resistance heater status  
+    resistance_heater_status: Optional[int] = 0  # Resistance heater status
     defrost_mode: Optional[int] = 0  # Defrost mode active
+
 
 @dataclass
 class DeviceInfo:
     """Device information and metadata."""
+
     device_type: int
     mac_address: str
     additional_value: str
     controller_serial_number: str
     features: DeviceFeatures
 
+
 @dataclass
 class Reservation:
     """Device reservation/schedule entry."""
+
     id: Optional[str] = None
     start_time: Optional[str] = None
     end_time: Optional[str] = None
@@ -162,16 +169,20 @@ class Reservation:
     recurring: Optional[bool] = None
     days_of_week: Optional[List[int]] = None
 
+
 @dataclass
 class TOUInfo:
     """Time of Use information."""
+
     status: Optional[int] = None
     schedule: Optional[List[Dict[str, Any]]] = None
     rates: Optional[List[Dict[str, Any]]] = None
 
+
 @dataclass
 class UserInfo:
     """User account information."""
+
     user_id: str
     email: str
     user_type: str
@@ -180,9 +191,11 @@ class UserInfo:
     refresh_token: Optional[str] = None
     token_expires_at: Optional[datetime] = None
 
+
 @dataclass
 class EnergyUsage:
     """Energy usage data."""
+
     date: str
     usage: float
     cost: Optional[float] = None
