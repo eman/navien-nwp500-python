@@ -8,12 +8,16 @@ import logging
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 from .aws_iot_websocket import AWSIoTWebSocketConnection
 from .config import ReconnectConfig
 from .exceptions import CommunicationError, MQTTError, WebSocketError
 from .models import DeviceStatus, EnergyUsage, Reservation
+
+if TYPE_CHECKING:
+    from .client import NaviLinkClient
+    from .device import NaviLinkDevice
 
 logger = logging.getLogger(__name__)
 
