@@ -39,17 +39,17 @@ jobs:
     - name: Lint with flake8
       run: |
         # Stop the build if there are Python syntax errors or undefined names
-        flake8 navien_nwp500 --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 navien_nwp500 --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=navien_nwp500/_version.py
         # Exit-zero treats all errors as warnings. Line length is handled by black
-        flake8 navien_nwp500 --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+        flake8 navien_nwp500 --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics --exclude=navien_nwp500/_version.py
 
     - name: Format check with black
       run: |
-        black --check navien_nwp500 tests
+        black --check navien_nwp500 tests --exclude="_version\.py"
 
     - name: Import sort check with isort
       run: |
-        isort --check-only navien_nwp500 tests
+        isort --check-only navien_nwp500 tests --skip=navien_nwp500/_version.py
 
     - name: Type check with mypy
       run: |
