@@ -32,6 +32,8 @@ Thank you for your interest in contributing to NaviLink! This guide will help yo
 
 ### **🔍 REQUIRED: All code must pass formatting and linting checks**
 
+**This applies to ALL contributors, including AI coding assistants, automated tools, and human developers.**
+
 Before submitting any pull request, ensure your code passes all quality checks:
 
 ```bash
@@ -50,6 +52,17 @@ pytest tests/ -v
 # Check all quality standards at once
 make check  # or run individual commands above
 ```
+
+### **🤖 For AI Coding Assistants & Automated Tools**
+
+AI assistants and automated code generation tools **must** apply the same formatting standards:
+
+- **Always run `black .`** after generating or modifying code
+- **Always run `isort .`** to sort imports properly  
+- **Verify formatting** with `black --check .` before submitting
+- **Use the same standards** as human contributors
+
+**Note**: AI-generated code is subject to the same CI checks as human-written code. The build will fail if formatting is not applied, regardless of the source.
 
 ### **⚠️ CI Enforcement**
 

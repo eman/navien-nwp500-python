@@ -4,6 +4,34 @@
 
 This project **requires** all code to be formatted with **Black** and **isort**. The CI build will **fail** if formatting standards are not met.
 
+**This applies to ALL code contributions:**
+- 👥 **Human developers**
+- 🤖 **AI coding assistants** (Claude, ChatGPT, GitHub Copilot, etc.)
+- 🔧 **Automated tools and code generators**
+- 📝 **Any code modification or generation**
+
+## 🤖 Special Note for AI Assistants
+
+**AI coding assistants must follow the same formatting standards as human developers.**
+
+When an AI assistant generates or modifies code, it should:
+
+1. **Generate properly formatted code** when possible
+2. **Always recommend running formatting tools** after code changes
+3. **Include formatting commands** in code suggestions
+4. **Verify formatting compliance** before considering work complete
+
+Example AI response pattern:
+```bash
+# After making code changes, always run:
+black .
+isort .
+
+# Verify formatting is correct:
+black --check .
+isort --check-only .
+```
+
 ## 🚀 Quick Fix for Contributors
 
 **Before committing any code**, always run:
