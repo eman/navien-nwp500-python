@@ -29,6 +29,7 @@ setup(
         "websockets>=10.0",
         "cryptography>=3.4.0",
         "pydantic>=2.0.0",
+        "awsiotsdk>=1.11.0",
     ],
     extras_require={
         "dev": [

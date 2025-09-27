@@ -94,34 +94,43 @@ def create_websocket_url(
     Returns:
         Signed WebSocket URL
     """
+    import urllib.parse
+    from datetime import datetime
+    
+    # For AWS IoT WebSocket, we need to use a different approach
+    # Based on AWS IoT WebSocket connection format
+    
     timestamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
     date_stamp = timestamp[:8]
     
+    # Parse the IoT endpoint
+    parsed_url = urllib.parse.urlparse(base_url)
+    host = parsed_url.netloc
+    
+    # AWS IoT WebSocket parameters
     query_params = {
         'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
-        'X-Amz-Credential': f"{access_key}/{date_stamp}/{region}/iotdata/aws4_request",
+        'X-Amz-Credential': f"{access_key}/{date_stamp}/{region}/iotdevicegateway/aws4_request",
         'X-Amz-Date': timestamp,
         'X-Amz-SignedHeaders': 'host',
         'X-Amz-Security-Token': session_token
     }
     
-    # Parse URL
-    parsed_url = urllib.parse.urlparse(base_url)
-    host = parsed_url.netloc
-    uri = parsed_url.path or '/'
-    
+    # Create canonical request for AWS IoT
     headers = {'host': host}
     
+    # Create signature using iotdevicegateway service
     signature = create_aws_signature(
         method='GET',
-        uri=uri,
+        uri='/mqtt',
         query_params=query_params,
         headers=headers,
         payload='',
         secret_key=secret_key,
         access_key=access_key,
         session_token=session_token,
-        region=region
+        region=region,
+        service='iotdevicegateway'  # Changed from iotdata to iotdevicegateway
     )
     
     query_params['X-Amz-Signature'] = signature

@@ -134,13 +134,13 @@ class NaviLinkDevice:
             await self.connect()
             
         try:
-            status = await self._mqtt.get_device_status()
-            self._last_status = status
-            return status
+            # Get channel info first (this is like device info in navilink_api)
+            info = await self._mqtt.get_channel_info()
+            return info
             
         except Exception as e:
-            logger.error(f"Failed to get status for device {self.mac_address}: {e}")
-            raise DeviceError(f"Failed to get device status: {e}")
+            logger.error(f"Failed to get info for device {self.mac_address}: {e}")
+            raise DeviceError(f"Failed to get device info: {e}")
     
     async def set_temperature(self, temperature: int) -> bool:
         """

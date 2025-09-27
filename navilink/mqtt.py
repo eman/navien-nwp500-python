@@ -1,27 +1,24 @@
 """
-MQTT/WebSocket communication for real-time device interaction.
+MQTT/WebSocket communication for real-time device interaction using AWS IoT SDK.
 """
 
 import asyncio
 import json
 import logging
-import struct
 import time
 from typing import Dict, Any, Optional, Callable, List
-import websockets
-import aiohttp
 
-from .mqtt_protocol import MQTTProtocol, MQTTPacketType
+from .aws_iot_websocket import AWSIoTWebSocketConnection
 from .models import DeviceStatus, Reservation, EnergyUsage
 from .exceptions import WebSocketError, MQTTError, CommunicationError
-from .utils import generate_session_id, create_websocket_url, parse_device_response
 
 logger = logging.getLogger(__name__)
 
 class NaviLinkMQTT:
-    """Handles MQTT over WebSocket communication with NaviLink devices."""
+    """Handles MQTT over WebSocket communication with NaviLink devices using AWS IoT SDK."""
     
-    WS_BASE_URL = "wss://nlus-iot.naviensmartcontrol.com/mqtt"
+    # AWS IoT endpoint from navilink_api
+    IOT_ENDPOINT = "a1t30mldyslmuq-ats.iot.us-east-1.amazonaws.com"
     
     # MQTT command constants from HAR analysis
     CMD_GET_DEVICE_INFO = 16777217  # Get device information (DID)
@@ -32,7 +29,7 @@ class NaviLinkMQTT:
         self,
         client: 'NaviLinkClient',
         device: 'NaviLinkDevice',
-        session: Optional[aiohttp.ClientSession] = None
+        session: Optional = None
     ):
         """
         Initialize MQTT connection handler.
@@ -40,32 +37,30 @@ class NaviLinkMQTT:
         Args:
             client: Parent NaviLinkClient instance
             device: NaviLinkDevice instance
-            session: Optional aiohttp session
+            session: Optional (unused, kept for compatibility)
         """
         self._client = client
         self._device = device
-        self._session = session
         
-        self._websocket: Optional[websockets.WebSocketServerProtocol] = None
+        self._aws_connection: Optional[AWSIoTWebSocketConnection] = None
         self._connected = False
         self._monitoring = False
+        
+        # Use UUID as client ID like navilink_api
+        from .utils import generate_session_id
         self._session_id = generate_session_id()
         
-        # MQTT protocol handler
-        self._mqtt_protocol = MQTTProtocol()
-        
         # Message handling
-        self._message_id = 1
         self._pending_responses: Dict[str, asyncio.Future] = {}
         self._status_callback: Optional[Callable[[DeviceStatus], None]] = None
         
-        # Topic patterns from HAR analysis
-        self._command_topic_base = f"cmd/{self._device.device_type}/navilink-{self._device.mac_address}/st"
+        # Topic patterns from navilink_api analysis
+        self._command_topic_base = f"cmd/{self._device.device_type}/navilink-{self._device.mac_address}"
         self._response_topic_base = f"cmd/{self._device.device_type}/{self._get_group_id()}/{self._get_user_id()}/{self._session_id}/res"
         
     def _get_group_id(self) -> str:
         """Get user group ID."""
-        # From HAR analysis, this appears to be the homeSeq from device info
+        # From navilink_api analysis, this appears to be the homeSeq from device info
         if hasattr(self._device, 'home_seq') and self._device.home_seq:
             return str(self._device.home_seq)
         return "25004"  # Default from HAR analysis
@@ -79,7 +74,7 @@ class NaviLinkMQTT:
     
     async def connect(self):
         """
-        Connect to MQTT WebSocket.
+        Connect to MQTT via AWS IoT WebSocket.
         
         Raises:
             WebSocketError: If connection fails
@@ -95,62 +90,47 @@ class NaviLinkMQTT:
             if not aws_creds:
                 raise WebSocketError("No AWS credentials available")
             
-            # Create signed WebSocket URL
-            ws_url = create_websocket_url(
-                base_url=self.WS_BASE_URL,
-                access_key=aws_creds["accessKeyId"],
-                secret_key=aws_creds["secretKey"],
-                session_token=aws_creds["sessionToken"]
+            logger.info("Connecting to AWS IoT via WebSocket...")
+            
+            # Create AWS IoT WebSocket connection
+            self._aws_connection = AWSIoTWebSocketConnection(
+                endpoint=self.IOT_ENDPOINT,
+                access_key_id=aws_creds["accessKeyId"],
+                secret_access_key=aws_creds["secretKey"],
+                session_token=aws_creds["sessionToken"],
+                client_id=self._session_id,
+                region="us-east-1"
             )
             
-            logger.debug(f"Connecting to WebSocket: {ws_url[:100]}...")
+            # Set up message callback
+            self._aws_connection.set_message_callback(self._on_message)
             
-            # Connect to WebSocket
-            self._websocket = await websockets.connect(
-                ws_url,
-                subprotocols=["mqtt"],
-                additional_headers={
-                    "User-Agent": "NaviLink-Python/0.1.0"
-                }
-            )
-            
-            logger.info("WebSocket connection established")
-            
-            # Send MQTT CONNECT packet
-            await self._send_mqtt_connect()
-            
-            # Wait for CONNACK
-            await self._wait_for_connack()
-            
-            # Start message handling loop
-            asyncio.create_task(self._message_handler())
+            # Connect
+            await self._aws_connection.connect()
             
             # Subscribe to response topics
             await self._subscribe_to_topics()
             
             self._connected = True
-            logger.info(f"Connected to MQTT for device {self._device.mac_address}")
+            logger.info(f"Connected to AWS IoT for device {self._device.mac_address}")
             
         except Exception as e:
-            logger.error(f"Failed to connect to MQTT: {e}")
+            logger.error(f"Failed to connect to AWS IoT: {e}")
             self._connected = False
             raise WebSocketError(f"Failed to connect to MQTT: {e}")
     
     async def disconnect(self):
-        """Disconnect from MQTT WebSocket."""
+        """Disconnect from AWS IoT WebSocket."""
         self._monitoring = False
         self._connected = False
         
-        if self._websocket:
+        if self._aws_connection:
             try:
-                # Send DISCONNECT packet
-                disconnect_packet = bytes([0xE0, 0x00])  # DISCONNECT packet
-                await self._websocket.send(disconnect_packet)
-            except:
-                pass
-            
-            await self._websocket.close()
-            self._websocket = None
+                await self._aws_connection.disconnect()
+            except Exception as e:
+                logger.warning(f"Error disconnecting AWS IoT: {e}")
+            finally:
+                self._aws_connection = None
             
         # Cancel any pending responses
         for future in self._pending_responses.values():
@@ -158,166 +138,81 @@ class NaviLinkMQTT:
                 future.cancel()
         self._pending_responses.clear()
         
-        logger.info(f"Disconnected from MQTT for device {self._device.mac_address}")
+        logger.info(f"Disconnected from AWS IoT for device {self._device.mac_address}")
     
-    async def _send_mqtt_connect(self):
-        """Send MQTT CONNECT packet."""
-        # Based on HAR analysis
-        client_id = self._session_id
-        username = "?SDK=Android&Version=2.22.0"
-        
-        connect_packet = self._mqtt_protocol.create_connect_packet(
-            client_id=client_id,
-            username=username,
-            clean_session=True,
-            keep_alive=300  # 5 minutes
-        )
-        
-        logger.debug(f"Sending CONNECT packet: {connect_packet.hex()}")
-        await self._websocket.send(connect_packet)
-    
-    async def _wait_for_connack(self):
-        """Wait for MQTT CONNACK response."""
-        try:
-            # Wait for CONNACK with timeout
-            data = await asyncio.wait_for(self._websocket.recv(), timeout=10.0)
-            
-            if isinstance(data, str):
-                data = data.encode()
-            
-            message = self._mqtt_protocol.parse_packet(data)
-            
-            if message.packet_type == MQTTPacketType.CONNACK:
-                connack = self._mqtt_protocol.parse_connack(message.payload)
-                if connack["return_code"] == 0:
-                    logger.info("MQTT connection accepted")
-                else:
-                    raise MQTTError(f"MQTT connection refused: {connack['return_code_name']}")
-            else:
-                raise MQTTError(f"Expected CONNACK, got packet type {message.packet_type}")
-                
-        except asyncio.TimeoutError:
-            raise MQTTError("Timeout waiting for CONNACK")
-    
-    async def _subscribe_to_topics(self):
-        """Subscribe to device response topics."""
-        # Based on HAR analysis, subscribe to various response topics
-        topics = [
-            f"{self._response_topic_base}",
-            f"{self._response_topic_base}/did", 
-            f"{self._response_topic_base}/rsv/rd",
-            f"{self._response_topic_base}/energy-usage-daily-query/rd",
-            f"{self._response_topic_base}/energy-usage-monthly-query/rd",
-            f"{self._response_topic_base}/recirc-rsv/rd"
-        ]
-        
-        for topic in topics:
-            subscribe_packet = self._mqtt_protocol.create_subscribe_packet(topic, qos=1)
-            logger.debug(f"Subscribing to: {topic}")
-            await self._websocket.send(subscribe_packet)
-            
-            # Wait for SUBACK
-            await self._wait_for_suback()
-    
-    async def _wait_for_suback(self):
-        """Wait for SUBSCRIBE acknowledgment."""
-        try:
-            data = await asyncio.wait_for(self._websocket.recv(), timeout=5.0)
-            
-            if isinstance(data, str):
-                data = data.encode()
-            
-            message = self._mqtt_protocol.parse_packet(data)
-            
-            if message.packet_type == MQTTPacketType.SUBACK:
-                suback = self._mqtt_protocol.parse_suback(message.payload)
-                logger.debug(f"SUBACK received for packet {suback['packet_id']}")
-            else:
-                logger.warning(f"Expected SUBACK, got packet type {message.packet_type}")
-                
-        except asyncio.TimeoutError:
-            logger.warning("Timeout waiting for SUBACK")
-    
-    async def _message_handler(self):
-        """Handle incoming WebSocket messages."""
-        try:
-            async for message in self._websocket:
-                try:
-                    if isinstance(message, str):
-                        message = message.encode()
-                    
-                    mqtt_message = self._mqtt_protocol.parse_packet(message)
-                    await self._handle_mqtt_message(mqtt_message)
-                    
-                except Exception as e:
-                    logger.error(f"Error processing MQTT message: {e}")
-                    
-        except websockets.exceptions.ConnectionClosed:
-            logger.info("MQTT WebSocket connection closed")
-            self._connected = False
-        except Exception as e:
-            logger.error(f"Error in MQTT message handler: {e}")
-            self._connected = False
-    
-    async def _handle_mqtt_message(self, message):
+    def _on_message(self, topic: str, payload: bytes):
         """
-        Handle parsed MQTT message.
-        
-        Args:
-            message: Parsed MQTTMessage object
-        """
-        if message.packet_type == MQTTPacketType.PUBLISH:
-            publish_data = self._mqtt_protocol.parse_publish(message.flags, message.payload)
-            topic = publish_data["topic"]
-            payload = publish_data["payload"]
-            
-            logger.debug(f"Received PUBLISH on topic: {topic}")
-            
-            # Send PUBACK if QoS > 0
-            if publish_data["qos"] > 0 and publish_data["packet_id"]:
-                puback_packet = struct.pack('!BBH', 0x40, 0x02, publish_data["packet_id"])
-                await self._websocket.send(puback_packet)
-            
-            # Handle response messages
-            if "/res" in topic:
-                await self._handle_device_response(topic, payload)
-            
-        elif message.packet_type == MQTTPacketType.PUBACK:
-            logger.debug("PUBACK received")
-            
-        elif message.packet_type == MQTTPacketType.PINGRESP:
-            logger.debug("PINGRESP received")
-            
-        else:
-            logger.debug(f"Unhandled MQTT packet type: {message.packet_type}")
-    
-    async def _handle_device_response(self, topic: str, payload: bytes):
-        """
-        Handle device response message.
+        Handle incoming MQTT message.
         
         Args:
             topic: MQTT topic
             payload: Message payload
         """
         try:
-            # Parse JSON response
-            response_text = payload.decode('utf-8')
-            response_data = json.loads(response_text)
+            # Parse JSON payload
+            message_text = payload.decode('utf-8')
+            message_data = json.loads(message_text)
             
-            logger.debug(f"Device response: {response_text[:100]}...")
+            logger.info(f"📨 Received message on topic: {topic}")
+            logger.info(f"📨 Message content: {message_text}")
             
-            # Extract session ID to match with pending requests
-            session_id = response_data.get("sessionID")
+            # Handle response messages
+            if "/res/" in topic:
+                asyncio.create_task(self._handle_device_response(topic, message_data))
+            else:
+                logger.info(f"📨 Non-response message: {topic}")
+            
+        except Exception as e:
+            logger.error(f"Error handling message: {e}")
+            logger.info(f"Raw message: {payload}")
+    
+    async def _subscribe_to_topics(self):
+        """Subscribe to device response topics."""
+        # Based on navilink_api analysis, subscribe to different topics
+        topics = [
+            f"{self._command_topic_base}/res/channelinfo",
+            f"{self._response_topic_base}/channelinfo", 
+            f"{self._command_topic_base}/res/channelstatus",
+            f"{self._response_topic_base}/channelstatus"
+        ]
+        
+        successful_subscriptions = 0
+        for topic in topics:
+            try:
+                success = await self._aws_connection.subscribe(topic, qos=1)
+                if success:
+                    logger.debug(f"Subscribed to: {topic}")
+                    successful_subscriptions += 1
+                else:
+                    logger.debug(f"Subscription timeout for: {topic}")
+            except Exception as e:
+                logger.debug(f"Failed to subscribe to {topic}: {e}")
+        
+        logger.info(f"Successfully subscribed to {successful_subscriptions}/{len(topics)} topics")
+    
+    async def _handle_device_response(self, topic: str, message_data: Dict[str, Any]):
+        """
+        Handle device response message.
+        
+        Args:
+            topic: MQTT topic
+            message_data: Parsed message data
+        """
+        try:
+            session_id = message_data.get("sessionID")
+            response_data = message_data.get("response", {})
+            
+            logger.debug(f"Device response for session {session_id}")
             
             # Complete pending future if exists
             if session_id in self._pending_responses:
                 future = self._pending_responses.pop(session_id)
                 if not future.done():
-                    future.set_result(response_data.get("response", {}))
+                    future.set_result(response_data)
             
             # Handle status updates
-            if "status" in response_data.get("response", {}):
-                await self._handle_status_update(response_data["response"])
+            if "status" in response_data or "channelStatus" in response_data:
+                await self._handle_status_update(response_data)
                 
         except Exception as e:
             logger.error(f"Error parsing device response: {e}")
@@ -330,7 +225,13 @@ class NaviLinkMQTT:
             response_data: Status update data
         """
         try:
-            status = self._parse_device_status(response_data)
+            # Parse based on navilink_api format which has channelStatus
+            if "channelStatus" in response_data:
+                channel_status = response_data["channelStatus"].get("channel", {})
+                status = self._parse_channel_status(channel_status)
+            else:
+                status = self._parse_device_status(response_data)
+                
             if status and self._status_callback:
                 if asyncio.iscoroutinefunction(self._status_callback):
                     await self._status_callback(status)
@@ -339,9 +240,55 @@ class NaviLinkMQTT:
         except Exception as e:
             logger.error(f"Error handling status update: {e}")
     
+    def _parse_channel_status(self, channel_data: Dict[str, Any]) -> Optional[DeviceStatus]:
+        """
+        Parse channel status from navilink_api format.
+        
+        Args:
+            channel_data: Channel status data
+            
+        Returns:
+            DeviceStatus object or None if parsing fails
+        """
+        try:
+            # Map navilink_api channel format to our DeviceStatus format
+            return DeviceStatus(
+                command=0,  # Not in channel status
+                outside_temperature=0,  # Not in channel status
+                special_function_status=0,
+                did_reload=0,
+                error_code=channel_data.get("errorCodePrimary", 0),
+                sub_error_code=channel_data.get("errorCodeSecondary", 0),
+                operation_mode=1 if channel_data.get("powerStatus") else 0,
+                operation_busy=0,
+                freeze_protection_use=0,
+                dhw_use=1 if channel_data.get("onDemandUseFlag") else 0,
+                dhw_use_sustained=0,
+                dhw_temperature=channel_data.get("avgOutletTemp", 0),
+                dhw_temperature_setting=channel_data.get("DHWSettingTemp", 0),
+                program_reservation_use=0,
+                smart_diagnostic=0,
+                fault_status1=0,
+                fault_status2=0,
+                wifi_rssi=0,  # Not in channel status
+                eco_use=0,
+                dhw_target_temperature_setting=channel_data.get("DHWSettingTemp", 0),
+                # Set remaining fields to default values
+                **{field: 0 for field in DeviceStatus.__dataclass_fields__ 
+                   if field not in ['command', 'outside_temperature', 'special_function_status',
+                                   'did_reload', 'error_code', 'sub_error_code', 'operation_mode',
+                                   'operation_busy', 'freeze_protection_use', 'dhw_use',
+                                   'dhw_use_sustained', 'dhw_temperature', 'dhw_temperature_setting',
+                                   'program_reservation_use', 'smart_diagnostic', 'fault_status1',
+                                   'fault_status2', 'wifi_rssi', 'eco_use', 'dhw_target_temperature_setting']}
+            )
+        except Exception as e:
+            logger.error(f"Error parsing channel status: {e}")
+            return None
+    
     def _parse_device_status(self, data: Dict[str, Any]) -> Optional[DeviceStatus]:
         """
-        Parse device status from response data.
+        Parse device status from original HAR format.
         
         Args:
             data: Raw status data
@@ -353,7 +300,6 @@ class NaviLinkMQTT:
             status_data = data.get("status", {})
             
             # Create DeviceStatus with available fields
-            # Many fields default to 0 if not present
             return DeviceStatus(
                 command=status_data.get("command", 0),
                 outside_temperature=status_data.get("outsideTemperature", 0),
@@ -375,73 +321,14 @@ class NaviLinkMQTT:
                 wifi_rssi=status_data.get("wifiRssi", 0),
                 eco_use=status_data.get("ecoUse", 0),
                 dhw_target_temperature_setting=status_data.get("dhwTargetTemperatureSetting", 0),
-                tank_upper_temperature=status_data.get("tankUpperTemperature", 0),
-                tank_lower_temperature=status_data.get("tankLowerTemperature", 0),
-                discharge_temperature=status_data.get("dischargeTemperature", 0),
-                suction_temperature=status_data.get("suctionTemperature", 0),
-                evaporator_temperature=status_data.get("evaporatorTemperature", 0),
-                ambient_temperature=status_data.get("ambientTemperature", 0),
-                target_super_heat=status_data.get("targetSuperHeat", 0),
-                comp_use=status_data.get("compUse", 0),
-                eev_use=status_data.get("eevUse", 0),
-                eva_fan_use=status_data.get("evaFanUse", 0),
-                current_inst_power=status_data.get("currentInstPower", 0),
-                shut_off_valve_use=status_data.get("shutOffValveUse", 0),
-                con_ovr_sensor_use=status_data.get("conOvrSensorUse", 0),
-                wtr_ovr_sensor_use=status_data.get("wtrOvrSensorUse", 0),
-                dhw_charge_per=status_data.get("dhwChargePer", 0),
-                dr_event_status=status_data.get("drEventStatus", 0),
-                vacation_day_setting=status_data.get("vacationDaySetting", 0),
-                vacation_day_elapsed=status_data.get("vacationDayElapsed", 0),
-                freeze_protection_temperature=status_data.get("freezeProtectionTemperature", 0),
-                anti_legionella_use=status_data.get("antiLegionellaUse", 0),
-                anti_legionella_period=status_data.get("antiLegionellaPeriod", 0),
-                anti_legionella_operation_busy=status_data.get("antiLegionellaOperationBusy", 0),
-                program_reservation_type=status_data.get("programReservationType", 0),
-                dhw_operation_setting=status_data.get("dhwOperationSetting", 0),
-                temperature_type=status_data.get("temperatureType", 0),
-                temp_formula_type=status_data.get("tempFormulaType", 0),
-                error_buzzer_use=status_data.get("errorBuzzerUse", 0),
-                current_heat_use=status_data.get("currentHeatUse", 0),
-                current_inlet_temperature=status_data.get("currentInletTemperature", 0),
-                current_statenum=status_data.get("currentStatenum", 0),
-                target_fan_rpm=status_data.get("targetFanRpm", 0),
-                current_fan_rpm=status_data.get("currentFanRpm", 0),
-                fan_pwm=status_data.get("fanPwm", 0),
-                dhw_temperature2=status_data.get("dhwTemperature2", 0),
-                current_dhw_flow_rate=status_data.get("currentDhwFlowRate", 0),
-                mixing_rate=status_data.get("mixingRate", 0),
-                eev_step=status_data.get("eevStep", 0),
-                current_super_heat=status_data.get("currentSuperHeat", 0),
-                heat_upper_use=status_data.get("heatUpperUse", 0),
-                heat_lower_use=status_data.get("heatLowerUse", 0),
-                scald_use=status_data.get("scaldUse", 0),
-                air_filter_alarm_use=status_data.get("airFilterAlarmUse", 0),
-                air_filter_alarm_period=status_data.get("airFilterAlarmPeriod", 0),
-                air_filter_alarm_elapsed=status_data.get("airFilterAlarmElapsed", 0),
-                cumulated_op_time_eva_fan=status_data.get("cumulatedOpTimeEvaFan", 0),
-                cumulated_dhw_flow_rate=status_data.get("cumulatedDhwFlowRate", 0),
-                tou_status=status_data.get("touStatus", 0),
-                hp_upper_on_temp_setting=status_data.get("hpUpperOnTempSetting", 0),
-                hp_upper_off_temp_setting=status_data.get("hpUpperOffTempSetting", 0),
-                hp_lower_on_temp_setting=status_data.get("hpLowerOnTempSetting", 0),
-                hp_lower_off_temp_setting=status_data.get("hpLowerOffTempSetting", 0),
-                he_upper_on_temp_setting=status_data.get("heUpperOnTempSetting", 0),
-                he_upper_off_temp_setting=status_data.get("heUpperOffTempSetting", 0),
-                he_lower_on_temp_setting=status_data.get("heLowerOnTempSetting", 0),
-                he_lower_off_temp_setting=status_data.get("heLowerOffTempSetting", 0),
-                hp_upper_on_diff_temp_setting=status_data.get("hpUpperOnDiffTempSetting", 0),
-                hp_upper_off_diff_temp_setting=status_data.get("hpUpperOffDiffTempSetting", 0),
-                hp_lower_on_diff_temp_setting=status_data.get("hpLowerOnDiffTempSetting", 0),
-                hp_lower_off_diff_temp_setting=status_data.get("hpLowerOffDiffTempSetting", 0),
-                he_upper_on_diff_temp_setting=status_data.get("heUpperOnDiffTempSetting", 0),
-                he_upper_off_diff_temp_setting=status_data.get("heUpperOffDiffTempSetting", 0),
-                he_lower_on_tdiffemp_setting=status_data.get("heLowerOnTDiffempSetting", 0),
-                he_lower_off_diff_temp_setting=status_data.get("heLowerOffDiffTempSetting", 0),
-                dr_override_status=status_data.get("drOverrideStatus", 0),
-                tou_override_status=status_data.get("touOverrideStatus", 0),
-                total_energy_capacity=status_data.get("totalEnergyCapacity", 0),
-                available_energy_capacity=status_data.get("availableEnergyCapacity", 0)
+                # Set remaining fields with defaults from status_data
+                **{field: status_data.get(field, 0) for field in DeviceStatus.__dataclass_fields__ 
+                   if field not in ['command', 'outside_temperature', 'special_function_status',
+                                   'did_reload', 'error_code', 'sub_error_code', 'operation_mode',
+                                   'operation_busy', 'freeze_protection_use', 'dhw_use',
+                                   'dhw_use_sustained', 'dhw_temperature', 'dhw_temperature_setting',
+                                   'program_reservation_use', 'smart_diagnostic', 'fault_status1',
+                                   'fault_status2', 'wifi_rssi', 'eco_use', 'dhw_target_temperature_setting']}
             )
         except Exception as e:
             logger.error(f"Error parsing device status: {e}")
@@ -451,6 +338,7 @@ class NaviLinkMQTT:
         self, 
         command: int, 
         topic_suffix: str = "",
+        response_topic_suffix: str = "",
         additional_data: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
@@ -458,7 +346,7 @@ class NaviLinkMQTT:
         
         Args:
             command: Command ID
-            topic_suffix: Additional topic suffix (e.g., "/did")
+            topic_suffix: Additional topic suffix (e.g., "/channelinfo")
             additional_data: Additional command parameters
             
         Returns:
@@ -470,10 +358,11 @@ class NaviLinkMQTT:
         # Generate unique session ID for this request
         request_session_id = str(int(time.time() * 1000))
         
-        # Build command message based on HAR analysis
+        # Build command message based on navilink_api analysis
+        response_suffix = response_topic_suffix or topic_suffix.split('/')[-1] if topic_suffix else ""
         command_data = {
             "clientID": self._session_id,
-            "protocolVersion": 2,
+            "protocolVersion": 1,  # Based on navilink_api
             "request": {
                 "additionalValue": self._device.additional_value,
                 "command": command,
@@ -481,30 +370,28 @@ class NaviLinkMQTT:
                 "macAddress": self._device.mac_address,
                 **(additional_data or {})
             },
-            "requestTopic": f"{self._command_topic_base}{topic_suffix}",
-            "responseTopic": f"{self._response_topic_base}{topic_suffix}",
+            "requestTopic": f"{self._command_topic_base}/{topic_suffix}",
+            "responseTopic": f"{self._response_topic_base}/{response_suffix}" if response_suffix else self._response_topic_base,
             "sessionID": request_session_id
         }
         
         # Create JSON payload
         payload = json.dumps(command_data).encode('utf-8')
         
-        # Create MQTT PUBLISH packet
-        topic = f"{self._command_topic_base}{topic_suffix}"
-        publish_packet = self._mqtt_protocol.create_publish_packet(
-            topic=topic,
-            payload=payload,
-            qos=1
-        )
-        
         # Create future for response
         response_future = asyncio.Future()
         self._pending_responses[request_session_id] = response_future
         
-        logger.debug(f"Sending command {command} to topic: {topic}")
+        # Publish via AWS IoT connection
+        topic = f"{self._command_topic_base}/{topic_suffix}"
+        logger.info(f"📤 Sending command {command} to topic: {topic}")
+        logger.info(f"📤 Command payload: {json.dumps(command_data, indent=2)}")
         
-        # Send command
-        await self._websocket.send(publish_packet)
+        success = await self._aws_connection.publish(topic, payload, qos=1)
+        if not success:
+            raise MQTTError(f"Failed to publish command {command}")
+        
+        logger.info(f"📤 Command {command} published successfully")
         
         try:
             # Wait for response with timeout
@@ -514,6 +401,17 @@ class NaviLinkMQTT:
             self._pending_responses.pop(request_session_id, None)
             raise MQTTError(f"Command timeout for command {command}")
     
+    async def get_channel_info(self) -> Dict[str, Any]:
+        """
+        Get channel information (device info).
+        
+        Returns:
+            Channel info dictionary
+        """
+        # Based on navilink_api: status/start request -> channelinfo response
+        response = await self.send_device_command(self.CMD_GET_DEVICE_INFO, "status/start", response_topic_suffix="channelinfo")
+        return response
+    
     async def get_device_status(self) -> DeviceStatus:
         """
         Get current device status.
@@ -521,23 +419,23 @@ class NaviLinkMQTT:
         Returns:
             DeviceStatus object
         """
-        response = await self.send_device_command(self.CMD_GET_STATUS)
-        status = self._parse_device_status({"status": response})
+        # Try channel status first (navilink_api approach)
+        try:
+            response = await self.send_device_command(16777220, "status/channelstatus", 
+                                                    {"status": {"channelNumber": 1, "unitNumberEnd": 1, "unitNumberStart": 1}})
+            if "channelStatus" in response:
+                status = self._parse_channel_status(response["channelStatus"].get("channel", {}))
+            else:
+                status = self._parse_device_status({"status": response})
+        except Exception:
+            # Fall back to original status command
+            response = await self.send_device_command(self.CMD_GET_STATUS)
+            status = self._parse_device_status({"status": response})
         
         if not status:
             raise MQTTError("Failed to parse device status")
             
         return status
-    
-    async def get_device_info(self) -> Dict[str, Any]:
-        """
-        Get detailed device information.
-        
-        Returns:
-            Device info dictionary
-        """
-        response = await self.send_device_command(self.CMD_GET_DEVICE_INFO, "/did")
-        return response
     
     async def get_reservations(self) -> List[Reservation]:
         """
@@ -546,7 +444,7 @@ class NaviLinkMQTT:
         Returns:
             List of Reservation objects
         """
-        response = await self.send_device_command(self.CMD_GET_RESERVATIONS, "/rsv/rd")
+        response = await self.send_device_command(self.CMD_GET_RESERVATIONS, "rsv/rd")
         
         # Parse reservations from response
         reservations = []
@@ -579,20 +477,18 @@ class NaviLinkMQTT:
         Returns:
             List of EnergyUsage objects
         """
-        # TODO: Implement energy usage commands based on HAR analysis
-        # This requires analyzing the energy usage query commands
+        # TODO: Implement energy usage commands based on navilink_api analysis
         return []
     
     async def start_monitoring(self):
         """Start real-time monitoring loop."""
         self._monitoring = True
         
-        # Request initial device info and status
+        # Request initial channel info like navilink_api does
         try:
-            await self.get_device_info()
-            await self.get_device_status()
+            await self.get_channel_info()
         except Exception as e:
-            logger.warning(f"Failed to get initial device data: {e}")
+            logger.warning(f"Failed to get initial channel info: {e}")
     
     async def stop_monitoring(self):
         """Stop real-time monitoring."""
@@ -610,4 +506,4 @@ class NaviLinkMQTT:
     @property
     def is_connected(self) -> bool:
         """Check if MQTT is connected."""
-        return self._connected and self._websocket and not self._websocket.closed
+        return self._connected and self._aws_connection and self._aws_connection.is_connected

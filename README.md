@@ -31,7 +31,7 @@ pip install navilink
 Or for development:
 
 ```bash
-git clone https://github.com/your-username/navilink.git
+git clone https://github.com/eman/navilink.git
 cd navilink
 pip install -e .
 ```
