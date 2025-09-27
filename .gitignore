@@ -217,3 +217,4 @@ debug_*.log
 test_output_*.json
 tank_monitoring_*.log
 *_enhanced.log
+reference/
