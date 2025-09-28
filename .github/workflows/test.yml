@@ -45,7 +45,7 @@ jobs:
 
     - name: Format check with black
       run: |
-        black --check navien_nwp500 tests --exclude="_version\.py"
+        black --check . --exclude="_version\.py"
 
     - name: Import sort check with isort
       run: |
