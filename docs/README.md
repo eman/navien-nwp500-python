@@ -84,6 +84,10 @@ Configuration management with enterprise patterns:
 
 See [DEVICE_DATA_SCHEMA.md](DEVICE_DATA_SCHEMA.md) for complete field definitions.
 
+See [FIELD_INSIGHTS.md](FIELD_INSIGHTS.md) for real-world data analysis and discoveries.
+
+See [TEMPERATURE_ANALYSIS.md](TEMPERATURE_ANALYSIS.md) for temperature behavior analysis and troubleshooting guide.
+
 ### Key Fields for Tank Monitoring
 
 | Field | Type | Unit | Description |
