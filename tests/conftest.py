@@ -204,9 +204,22 @@ def mock_client(mock_config, mock_aiohttp_session) -> NaviLinkClient:
 
 
 @pytest.fixture
-def mock_device(mock_client, mock_device_info) -> NaviLinkDevice:
+def mock_raw_device_data() -> Dict[str, Any]:
+    """Raw device data as it comes from the API."""
+    return {
+        "deviceType": 52,
+        "macAddress": "04786332fca0",
+        "additionalValue": "5322", 
+        "deviceName": "NWP500",
+        "connected": 2,
+        "homeSeq": 25004,
+    }
+
+
+@pytest.fixture
+def mock_device(mock_client, mock_raw_device_data) -> NaviLinkDevice:
     """Create a mock NaviLinkDevice."""
-    return NaviLinkDevice(client=mock_client, device_info=mock_device_info)
+    return NaviLinkDevice(client=mock_client, device_data=mock_raw_device_data)
 
 
 # Skip integration tests by default unless --integration flag is used
