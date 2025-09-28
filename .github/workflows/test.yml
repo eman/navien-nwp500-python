@@ -59,8 +59,8 @@ jobs:
 
     - name: Test with pytest
       run: |
-        # Run working tests with legacy exclusion
-        pytest tests/ --ignore=tests/legacy -v --cov=navien_nwp500 --cov-report=xml --cov-report=term-missing
+        # Run all tests in tests/ directory
+        pytest tests/ -v --cov=navien_nwp500 --cov-report=xml --cov-report=term-missing
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
@@ -91,7 +91,7 @@ jobs:
 
     - name: Run integration tests
       run: |
-        pytest tests/ --ignore=tests/legacy -v -m integration --tb=short
+        pytest tests/ -v -m integration --tb=short
       env:
         # These would be set as repository secrets for real integration tests
         NAVILINK_EMAIL: ${{ secrets.NAVILINK_EMAIL }}

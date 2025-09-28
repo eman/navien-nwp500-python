@@ -7,7 +7,7 @@
 
 1. **✅ ALWAYS run tests before submitting code:**
    ```bash
-   pytest tests/ --ignore=tests/legacy -v
+   pytest tests/ -v
    ```
 
 2. **✅ ALWAYS ensure tests pass (target: 24+ passing tests):**
@@ -44,7 +44,7 @@
 - **Current baseline: 24 passing tests (89% pass rate)**
 - **DO NOT decrease the number of passing tests**
 - **If you add features, add corresponding tests**
-- **Legacy tests in `tests/legacy/` are disabled - don't break the working tests**
+- **All tests in `tests/` are active and must pass**
 
 ### **⚠️ Zero Tolerance Policy**
 **Code submissions that break existing tests will be rejected.** Always verify your changes don't introduce regressions.
