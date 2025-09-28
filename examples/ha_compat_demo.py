@@ -119,6 +119,17 @@ async def demo_home_assistant_interface():
 
             # CRITICAL: DHW Charge Percent (missing from original recommendations)
             logger.info(f"   🔋 DHW Charge Level: {device_data['dhw_charge_percent']}%")
+            
+            # Energy Capacity Data (new fields)
+            logger.info(f"   ⚡ Total Energy Capacity: {device_data['total_energy_capacity']}")
+            logger.info(f"   ⚡ Available Energy Capacity: {device_data['available_energy_capacity']}")
+            
+            # Calculate energy utilization
+            total_capacity = device_data['total_energy_capacity']
+            available_capacity = device_data['available_energy_capacity']
+            used_capacity = total_capacity - available_capacity
+            utilization_percent = (used_capacity / total_capacity) * 100 if total_capacity > 0 else 0
+            logger.info(f"   📊 Energy Utilization: {utilization_percent:.1f}%")
 
             # Additional useful fields
             if device_data.get("error_code"):
@@ -272,6 +283,18 @@ async def demo_field_compatibility():
             for field, description in power_fields.items():
                 if field in device_data:
                     logger.info(f"   ✅ {field}: {device_data[field]}W ({description})")
+                else:
+                    logger.error(f"   ❌ MISSING: {field}")
+            
+            # Energy Capacity fields (new)
+            energy_fields = {
+                "total_energy_capacity": "Total thermal energy capacity",
+                "available_energy_capacity": "Available thermal energy capacity",
+            }
+            
+            for field, description in energy_fields.items():
+                if field in device_data:
+                    logger.info(f"   ✅ {field}: {device_data[field]} ({description})")
                 else:
                     logger.error(f"   ❌ MISSING: {field}")
 

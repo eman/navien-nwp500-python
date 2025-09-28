@@ -134,6 +134,9 @@ class NavienClient:
                 "power_consumption": float(status.current_inst_power),
                 "current_power": float(status.current_inst_power),
                 "power": float(status.current_inst_power),
+                # Energy Capacity Data (useful for thermal energy monitoring)
+                "total_energy_capacity": float(status.total_energy_capacity),
+                "available_energy_capacity": float(status.available_energy_capacity),
                 # Status Data - Using descriptive names for Home Assistant
                 "operating_mode": self._get_operation_mode_name(status.operation_mode),
                 "mode": self._get_operation_mode_name(status.operation_mode),
@@ -422,6 +425,9 @@ class NavienClient:
             "power_consumption": float(status.current_inst_power),
             "current_power": float(status.current_inst_power),
             "power": float(status.current_inst_power),
+            # Energy Capacity Data (useful for thermal energy monitoring)
+            "total_energy_capacity": float(status.total_energy_capacity),
+            "available_energy_capacity": float(status.available_energy_capacity),
             # Status Data
             "operating_mode": self._get_operation_mode_name(status.operation_mode),
             "mode": self._get_operation_mode_name(status.operation_mode),
