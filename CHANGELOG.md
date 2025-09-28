@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2025-01-26
+
+### 🔧 Fixed
+
+#### Packaging & Installation
+- **Fixed GitHub archive installations**: Removed setuptools-scm dependency from build requirements
+- **Static version configuration**: Added fallback version handling for archives without git metadata  
+- **Enhanced MANIFEST.in**: Ensure _version.py is included in all distributions
+- **Robust setup.py**: Handle version detection gracefully when setuptools-scm is unavailable
+
+#### What This Fixes
+- Resolves `setuptools-scm was unable to detect version` error when installing from GitHub archive URLs
+- Enables reliable `pip install` from `https://github.com/eman/navien-nwp500-python/archive/refs/tags/1.2.2.zip`
+- Maintains backward compatibility with all existing installation methods
+
+#### Technical Details
+- Removed `setuptools-scm` from `[build-system] requires` in pyproject.toml
+- Added static `version = "1.2.2"` in pyproject.toml  
+- Updated fallback version handling in `__init__.py` and `setup.py`
+- All tests continue to pass (41 passed, 3 skipped)
+
 ## [1.0.0] - 2025-09-27
 
 ### 🎉 Initial Production Release

@@ -2,7 +2,7 @@
 
 Control and monitor your Navien NWP500 Heat Pump Water Heater remotely using Python. This library provides complete access to the NaviLink cloud service, enabling real-time monitoring, device control, and data collection.
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![PyPI version](https://badge.fury.io/py/navien-nwp500.svg)](https://badge.fury.io/py/navien-nwp500)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://github.com/eman/navien-nwp500-python/workflows/Tests/badge.svg)](https://github.com/eman/navien-nwp500-python/actions)
@@ -18,9 +18,23 @@ Control and monitor your Navien NWP500 Heat Pump Water Heater remotely using Pyt
 
 ## Installation
 
+### From PyPI (Recommended)
+
 ```bash
 pip install navien-nwp500
 ```
+
+### From GitHub
+
+```bash
+# Install latest release
+pip install https://github.com/eman/navien-nwp500-python/archive/refs/tags/1.2.2.zip
+
+# Install development version
+pip install git+https://github.com/eman/navien-nwp500-python.git
+```
+
+> **Note**: Installation from GitHub archives now works reliably in v1.2.2+. Earlier versions had setuptools-scm issues that are now resolved.
 
 ## Quick Start
 
