@@ -28,6 +28,18 @@
    - Never submit code with failing tests
    - Exception: Only if explicitly asked to create failing tests for debugging
 
+5. **✅ For releases and packaging changes, ALSO run package build tests:**
+   ```bash
+   # Test package building (before any release-related changes)
+   python -m build --sdist --wheel
+   
+   # Test package installation (verify setup.py/pyproject.toml changes)
+   pip install -e .
+   
+   # Test import after installation
+   python -c "import navien_nwp500; print('✅ Import successful')"
+   ```
+
 ### **🎯 Test Quality Standards**
 - **Current baseline: 24 passing tests (89% pass rate)**
 - **DO NOT decrease the number of passing tests**

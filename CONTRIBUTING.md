@@ -63,6 +63,23 @@ isort navien_nwp500 tests examples
 mypy navien_nwp500
 ```
 
+#### **4. ✅ For Release/Packaging Changes (Additional Required Tests)**
+```bash
+# If modifying setup.py, pyproject.toml, __init__.py, or version info:
+
+# Test package building (REQUIRED before release changes)
+python -m build --sdist --wheel
+
+# Test package installation (verify setup changes work)
+pip install -e .
+
+# Test import after installation (catch import errors)
+python -c "import navien_nwp500; print('✅ Import successful')"
+
+# Test version consistency (for version changes)
+python -c "import navien_nwp500; print(f'Version: {navien_nwp500.__version__}')"
+```
+
 ### **🎯 Test Quality Standards**
 
 #### **Current Baseline (DO NOT BREAK):**
@@ -84,6 +101,7 @@ mypy navien_nwp500
 - Reduce the number of passing tests
 - Are not properly formatted with Black/isort
 - Don't include test fixes for any test breakage they introduce
+- **Break package building/installation** (for setup.py, pyproject.toml, or version changes)
 
 **Exception:** Only when explicitly asked to create failing tests for debugging purposes.
 
@@ -95,6 +113,7 @@ mypy navien_nwp500
 - **ALWAYS include test fixes if your changes break tests**
 - **NEVER submit code with failing tests unless explicitly asked**
 - **ALWAYS format code with Black and isort**
+- **For packaging changes**: ALWAYS test package building and installation
 
 ### **🔍 Additional Quality Checks**
 
@@ -106,10 +125,18 @@ flake8 navien_nwp500 --exclude=navien_nwp500/_version.py
 make test  # If using Makefile
 ```
 
-### **✅ Quick Pre-Submission Command**
+### **✅ Quick Pre-Submission Commands**
+
+#### **For Regular Code Changes:**
 ```bash
-# Run this before ANY code submission:
+# Standard workflow for most changes:
 black navien_nwp500 tests examples && isort navien_nwp500 tests examples && pytest tests/ --ignore=tests/legacy -v
+```
+
+#### **For Release/Packaging Changes:**
+```bash
+# Extended workflow for setup.py, pyproject.toml, version changes:
+black navien_nwp500 tests examples && isort navien_nwp500 tests examples && pytest tests/ --ignore=tests/legacy -v && python -m build --sdist --wheel && pip install -e . && python -c "import navien_nwp500; print('✅ Import successful')"
 ```
 
 ## 🚀 Development Workflow
