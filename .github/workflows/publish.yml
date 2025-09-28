@@ -60,7 +60,7 @@ jobs:
         fetch-depth: 0
         
     - name: Build wheels
-      uses: pypa/cibuildwheel@v2.16.2
+      uses: pypa/cibuildwheel@v2.21.0
       env:
         # Build wheels for Python 3.9+ (Python 3.8 support removed)
         CIBW_BUILD: cp39-* cp310-* cp311-* cp312-* cp313-*
@@ -76,7 +76,7 @@ jobs:
     - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:
-        name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
+        name: cibw-wheels-${{ matrix.os }}
         path: ./wheelhouse/*.whl
 
   publish-to-pypi:
@@ -98,6 +98,13 @@ jobs:
       with:
         name: python-package-distributions
         path: dist/
+    
+    - name: Download wheels from all platforms
+      uses: actions/download-artifact@v4
+      with:
+        pattern: cibw-wheels-*
+        path: dist/
+        merge-multiple: true
     
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
@@ -122,6 +129,13 @@ jobs:
         name: python-package-distributions
         path: dist/
     
+    - name: Download wheels from all platforms
+      uses: actions/download-artifact@v4
+      with:
+        pattern: cibw-wheels-*
+        path: dist/
+        merge-multiple: true
+    
     - name: Publish to TestPyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
@@ -143,6 +157,13 @@ jobs:
       with:
         name: python-package-distributions
         path: dist/
+    
+    - name: Download wheels from all platforms
+      uses: actions/download-artifact@v4
+      with:
+        pattern: cibw-wheels-*
+        path: dist/
+        merge-multiple: true
     
     - name: Sign the dists with Sigstore
       uses: sigstore/gh-action-sigstore-python@v2.1.1
