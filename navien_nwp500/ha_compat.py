@@ -123,8 +123,8 @@ class NavienClient:
             device_data = {
                 # Temperature Data (°F)
                 "water_temperature": float(status.dhw_temperature),
-                "set_temperature": float(status.dhw_temperature_setting),
-                "target_temp": float(status.dhw_temperature_setting),
+                "set_temperature": float(status.dhw_target_temperature_setting),  # Use target setting, not current setting
+                "target_temp": float(status.dhw_target_temperature_setting),
                 "tank_temp": float(status.dhw_temperature),  # Primary hot water temp
                 "inlet_temperature": float(status.tank_upper_temperature)
                 / 10.0,  # Cold water inlet (0.1°F units)
@@ -413,8 +413,8 @@ class NavienClient:
         return {
             # Temperature Data (°F)
             "water_temperature": float(status.dhw_temperature),
-            "set_temperature": float(status.dhw_temperature_setting),
-            "target_temp": float(status.dhw_temperature_setting),
+            "set_temperature": float(status.dhw_target_temperature_setting),
+            "target_temp": float(status.dhw_target_temperature_setting),
             "tank_temp": float(status.dhw_temperature),
             "inlet_temperature": float(status.tank_upper_temperature) / 10.0,
             "outlet_temperature": float(status.dhw_temperature),

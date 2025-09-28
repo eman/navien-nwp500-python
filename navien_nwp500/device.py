@@ -369,7 +369,7 @@ class NaviLinkDevice:
             }
 
             async with self._client._session.post(
-                f"{self._client.BASE_URL}/device/connectivity-status",
+                f"{self._client.config.base_url}/device/connectivity-status",
                 headers=self._client._auth.get_auth_headers(),
                 json=request_body,
             ) as response:

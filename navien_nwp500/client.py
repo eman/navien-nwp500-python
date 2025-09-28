@@ -230,7 +230,7 @@ class NaviLinkClient:
             }
 
             async with self._session.post(  # Changed from GET to POST
-                f"{self.BASE_URL}/device/list",
+                f"{self.config.base_url}/device/list",
                 headers=self._auth.get_auth_headers(),
                 json=request_body,
             ) as response:
@@ -301,7 +301,7 @@ class NaviLinkClient:
             }
 
             async with self._session.post(  # Changed from GET to POST
-                f"{self.BASE_URL}/device/info",
+                f"{self.config.base_url}/device/info",
                 headers=self._auth.get_auth_headers(),
                 json=request_body,
             ) as response:
@@ -344,7 +344,7 @@ class NaviLinkClient:
             params = {"macAddress": mac_address}
 
             async with self._session.get(
-                f"{self.BASE_URL}/device/firmware/info",
+                f"{self.config.base_url}/device/firmware/info",
                 headers=self._auth.get_auth_headers(),
                 params=params,
             ) as response:
@@ -394,7 +394,7 @@ class NaviLinkClient:
             }
 
             async with self._session.get(
-                f"{self.BASE_URL}/device/tou",
+                f"{self.config.base_url}/device/tou",
                 headers=self._auth.get_auth_headers(),
                 params=params,
             ) as response:
@@ -436,7 +436,7 @@ class NaviLinkClient:
 
         try:
             async with self._session.post(
-                f"{self.BASE_URL}/app/update-push-token",
+                f"{self.config.base_url}/app/update-push-token",
                 headers=self._auth.get_auth_headers(),
                 json={"pushToken": push_token},
             ) as response:
