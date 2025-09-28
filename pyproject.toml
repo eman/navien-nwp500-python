@@ -33,7 +33,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "awsiotsdk>=1.21.0"
 ]
-version = "1.2.1"
+version = "1.2.2"
 
 [project.urls]
 Homepage = "https://github.com/eman/navien-nwp500-python"
