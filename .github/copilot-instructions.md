@@ -38,6 +38,13 @@
    
    # Test import after installation
    python -c "import navien_nwp500; print('✅ Import successful')"
+   
+   # Test release workflow (before submitting release PRs)
+   # Verify GitHub Actions will pass:
+   # 1. All tests pass across Python 3.8-3.13
+   # 2. Black formatting passes
+   # 3. Package builds successfully 
+   # 4. No breaking changes to API
    ```
 
 ### **🎯 Test Quality Standards**

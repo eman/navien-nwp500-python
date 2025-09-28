@@ -143,11 +143,6 @@ class TankMonitor:
                 f"🏠 Using device: {self.device.name} (MAC: {self.device.mac_address})"
             )
 
-            # Connect device for MQTT monitoring (this was missing!)
-            logger.info("🔌 Connecting to device for real-time monitoring...")
-            await self.device.connect()
-            logger.info("✅ Device connection established")
-
             return True
 
         except Exception as e:
@@ -239,11 +234,12 @@ class TankMonitor:
                             logger.info("⏰ Duration limit reached, stopping...")
                             break
 
-                    # Get device status (force fresh data, not cached)
+                    # Get device status (connect automatically if needed)
+                    logger.debug("📡 Getting device status...")
                     status = await self.device.get_status(use_cache=False)
+
                     if status:
                         await self._log_data_point(status)
-                        self.stats["updates_received"] += 1
 
                         # Log current status
                         logger.info(
@@ -254,6 +250,9 @@ class TankMonitor:
 
                     # Wait for next polling interval with cancellation-aware sleep
                     try:
+                        logger.debug(
+                            f"💤 Sleeping for {self.polling_interval} seconds..."
+                        )
                         await asyncio.sleep(self.polling_interval)
                     except asyncio.CancelledError:
                         logger.info("🛑 Sleep interrupted by cancellation")
@@ -304,24 +303,30 @@ class TankMonitor:
                 )
 
     async def cleanup(self):
-        """Cleanup resources."""
+        """Cleanup resources with aggressive timeouts."""
         logger.info("🧹 Cleaning up resources...")
 
-        # Disconnect device first if connected
+        # Disconnect device first with timeout
         if hasattr(self, "device") and self.device:
             try:
                 logger.info("📴 Disconnecting device...")
-                await self.device.disconnect()
+                await asyncio.wait_for(self.device.disconnect(), timeout=3.0)
+                logger.info("✅ Device disconnected")
+            except asyncio.TimeoutError:
+                logger.warning("⚠️ Device disconnect timed out")
             except Exception as e:
-                logger.warning(f"Error disconnecting device: {e}")
+                logger.warning(f"⚠️ Error disconnecting device: {e}")
 
-        # Close client session
+        # Close client session with timeout
         if hasattr(self, "client") and self.client:
             try:
                 logger.info("🔒 Closing client session...")
-                await self.client.close()
+                await asyncio.wait_for(self.client.close(), timeout=3.0)
+                logger.info("✅ Client session closed")
+            except asyncio.TimeoutError:
+                logger.warning("⚠️ Client close timed out")
             except Exception as e:
-                logger.warning(f"Error closing client: {e}")
+                logger.warning(f"⚠️ Error closing client: {e}")
 
         self._log_session_summary()
         logger.info("✅ Cleanup completed")
@@ -355,20 +360,37 @@ async def main():
         logging.getLogger().setLevel(logging.DEBUG)
 
     monitor = None
+    monitoring_task = None
 
     # Create shutdown event for proper asyncio integration
     shutdown_event = asyncio.Event()
+    shutdown_count = 0
 
-    # Set up hybrid signal handling (asyncio + traditional for immediate response)
+    # Set up signal handling - simplified approach
     def signal_handler(signum=None, frame=None):
-        logger.info("🛑 Shutdown signal received...")
-        shutdown_event.set()
-        # Critical: Immediately stop monitor loop for responsive shutdown
-        if monitor:
-            monitor.running = False
+        nonlocal shutdown_count
+        shutdown_count += 1
 
-    # Register signal handlers - use traditional approach for immediate response
-    # This works during blocking operations unlike asyncio signal handlers
+        if shutdown_count == 1:
+            logger.info("🛑 Shutdown signal received, stopping gracefully...")
+            shutdown_event.set()
+            # Stop monitor immediately
+            if monitor:
+                monitor.running = False
+
+        elif shutdown_count == 2:
+            logger.info("🛑 Second signal - forcing immediate shutdown...")
+            # Cancel monitoring task directly
+            if monitoring_task and not monitoring_task.done():
+                monitoring_task.cancel()
+            # Force exit after brief delay
+            asyncio.get_event_loop().call_later(1.0, lambda: os._exit(1))
+
+        else:
+            logger.info("🛑 Force exit now!")
+            os._exit(1)
+
+    # Register signal handlers
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
@@ -402,65 +424,50 @@ async def main():
         try:
             await monitor.setup()
 
-            # Create monitoring task so we can cancel it
+            # Create monitoring task
             monitoring_task = asyncio.create_task(monitor.run_monitoring())
             shutdown_task = asyncio.create_task(shutdown_event.wait())
 
             # Wait for either monitoring to complete or shutdown signal
-            try:
-                done, pending = await asyncio.wait(
-                    [monitoring_task, shutdown_task],
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
+            done, pending = await asyncio.wait(
+                [monitoring_task, shutdown_task],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
 
-                # Cancel any remaining tasks
-                for task in pending:
+            # Cancel remaining tasks
+            for task in pending:
+                if not task.cancelled():
                     task.cancel()
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        pass
 
-                # If monitoring task completed, check for exceptions
-                if monitoring_task in done:
-                    try:
-                        await monitoring_task
-                    except asyncio.CancelledError:
-                        logger.info("🛑 Monitoring task cancelled")
-                    except Exception as e:
-                        logger.error(f"❌ Monitoring task failed: {e}")
-                        return False
+            # Check if shutdown was requested
+            if shutdown_task in done:
+                logger.info("🛑 Shutdown requested, cancelling monitoring...")
+                if not monitoring_task.cancelled():
+                    monitoring_task.cancel()
 
-            except asyncio.CancelledError:
-                logger.info("🛑 Main task cancelled")
-                # Cancel monitoring task
-                monitoring_task.cancel()
-                try:
-                    await monitoring_task
-                except asyncio.CancelledError:
-                    pass
+            # Wait briefly for cancellation to complete
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*pending, return_exceptions=True), timeout=2.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning("⚠️ Some tasks didn't cancel in time")
 
-            logger.info("🏁 Monitoring completed successfully")
+            logger.info("🏁 Monitoring completed")
             return True
 
         except Exception as e:
             logger.error(f"❌ Monitoring session failed: {e}")
             return False
         finally:
-            # Ensure monitoring task is cancelled
-            if (
-                "monitoring_task" in locals()
-                and monitoring_task
-                and not monitoring_task.done()
-            ):
-                monitoring_task.cancel()
-                try:
-                    await monitoring_task
-                except asyncio.CancelledError:
-                    pass
-
+            # Always cleanup, but with shorter timeout
             if monitor:
-                await monitor.cleanup()
+                try:
+                    await asyncio.wait_for(monitor.cleanup(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    logger.warning("⚠️ Cleanup timed out")
+                except Exception as e:
+                    logger.warning(f"⚠️ Cleanup error: {e}")
 
     except KeyboardInterrupt:
         logger.info("🛑 Monitoring stopped by user")
