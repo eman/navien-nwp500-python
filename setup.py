@@ -8,18 +8,19 @@ import os
 # Try to get version from setuptools-scm first
 try:
     from setuptools_scm import get_version
+
     version = get_version(fallback_version="1.2.2")
 except (ImportError, LookupError):
     # Fallback for when setuptools-scm can't detect version (e.g., GitHub archive)
     version = "1.2.2"
-    
+
     # Write the version file manually if it doesn't exist
     version_file = os.path.join("navien_nwp500", "_version.py")
     if not os.path.exists(version_file):
         os.makedirs(os.path.dirname(version_file), exist_ok=True)
         with open(version_file, "w") as f:
-            f.write(f'# Version file for navien-nwp500\n')
-            f.write(f'# Fallback version for archive installations\n\n')
+            f.write(f"# Version file for navien-nwp500\n")
+            f.write(f"# Fallback version for archive installations\n\n")
             f.write(f'__version__ = "{version}"\n')
             f.write(f'version = "{version}"\n')
             f.write(f'__version_tuple__ = {tuple(map(int, version.split(".")))}\n')
