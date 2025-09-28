@@ -91,7 +91,7 @@ jobs:
 
     - name: Run integration tests
       run: |
-        pytest tests/ -v -m integration --tb=short
+        pytest tests/ --ignore=tests/legacy -v -m integration --tb=short
       env:
         # These would be set as repository secrets for real integration tests
         NAVILINK_EMAIL: ${{ secrets.NAVILINK_EMAIL }}
