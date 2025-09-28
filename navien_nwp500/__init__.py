@@ -36,8 +36,8 @@ from .mqtt import NaviLinkMQTT
 try:
     from ._version import __version__
 except ImportError:
-    # Fallback version for development installations
-    __version__ = "0.0.0+unknown"
+    # Fallback version for installations without git metadata (e.g., GitHub archive)
+    __version__ = "1.2.1"
 
 __author__ = "Emmanuel Levijarvi"
 
