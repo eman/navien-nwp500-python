@@ -43,7 +43,7 @@ jobs:
     
     - name: Run linting
       run: |
-        black --check .
+        black --exclude="_version\.py" --check .
         isort --check-only .
     
     - name: Type check
