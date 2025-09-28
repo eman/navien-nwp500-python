@@ -26,6 +26,9 @@ from .exceptions import (
     NaviLinkError,
     WebSocketError,
 )
+
+# Home Assistant Compatible Interface
+from .ha_compat import NavienClient
 from .models import DeviceFeatures, DeviceInfo, DeviceStatus
 from .mqtt import NaviLinkMQTT
 
@@ -44,6 +47,8 @@ __all__ = [
     "NaviLinkDevice",
     "NaviLinkAuth",
     "NaviLinkMQTT",
+    # Home Assistant Compatible Interface
+    "NavienClient",
     # Configuration
     "NaviLinkConfig",
     "ReconnectConfig",
