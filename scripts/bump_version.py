@@ -3,11 +3,12 @@
 Version bumping script for navien-nwp500 package.
 
 This script helps with semantic version bumping and release preparation.
-Uses setuptools-scm for version management, which derives versions from git tags.
+Uses static versioning in pyproject.toml for reliable builds.
 """
 import argparse
 import subprocess
 import sys
+import re
 from datetime import date
 from pathlib import Path
 
@@ -23,17 +24,74 @@ def run_command(cmd, check=True):
 
 
 def get_current_version():
-    """Get current version from setuptools-scm."""
-    try:
-        result = run_command("python -m setuptools_scm")
-        # Clean up development versions for processing
-        if "+" in result:
-            result = result.split("+")[0]  # Remove +dirty suffix
-        if "post" in result:
-            result = result.split(".post")[0]  # Remove .postN suffix
-        return result
-    except:
+    """Get current version from pyproject.toml."""
+    pyproject_path = Path("pyproject.toml")
+    if not pyproject_path.exists():
+        print("pyproject.toml not found")
         return "0.0.0"
+    
+    content = pyproject_path.read_text()
+    
+    # Find version line in pyproject.toml
+    version_match = re.search(r'^version\s*=\s*["\']([^"\']+)["\']', content, re.MULTILINE)
+    if version_match:
+        return version_match.group(1)
+    else:
+        print("Version not found in pyproject.toml")
+        return "0.0.0"
+
+
+def update_version_in_pyproject(new_version):
+    """Update version in pyproject.toml."""
+    pyproject_path = Path("pyproject.toml")
+    content = pyproject_path.read_text()
+    
+    # Replace version line
+    new_content = re.sub(
+        r'^version\s*=\s*["\'][^"\']+["\']',
+        f'version = "{new_version}"',
+        content,
+        flags=re.MULTILINE
+    )
+    
+    pyproject_path.write_text(new_content)
+    print(f"Updated pyproject.toml version to {new_version}")
+
+
+def update_version_in_init(new_version):
+    """Update fallback version in __init__.py."""
+    init_path = Path("navien_nwp500/__init__.py")
+    if not init_path.exists():
+        return
+    
+    content = init_path.read_text()
+    
+    # Update fallback version
+    new_content = re.sub(
+        r'__version__ = ["\'][^"\']+["\']',
+        f'__version__ = "{new_version}"',
+        content
+    )
+    
+    init_path.write_text(new_content)
+    print(f"Updated __init__.py fallback version to {new_version}")
+
+
+def update_setuptools_scm_fallback(new_version):
+    """Update setuptools_scm fallback version in pyproject.toml."""
+    pyproject_path = Path("pyproject.toml")
+    content = pyproject_path.read_text()
+    
+    # Update fallback_version in setuptools_scm section
+    new_content = re.sub(
+        r'^fallback_version\s*=\s*["\'][^"\']+["\']',
+        f'fallback_version = "{new_version}"',
+        content,
+        flags=re.MULTILINE
+    )
+    
+    pyproject_path.write_text(new_content)
+    print(f"Updated setuptools_scm fallback_version to {new_version}")
 
 
 def update_changelog(version_type, new_version):
@@ -112,9 +170,9 @@ def main():
     if args.version_type == "custom" and not args.version:
         parser.error("--version is required when version_type is 'custom'")
 
-    # Get current version
+    # Get current version from pyproject.toml
     current = get_current_version()
-    print(f"Current version: {current}")
+    print(f"Current version (pyproject.toml): {current}")
 
     # Calculate new version
     if args.version_type == "custom":
@@ -143,6 +201,12 @@ def main():
 
     if args.dry_run:
         print("DRY RUN - No changes made")
+        print(f"Would update:")
+        print(f"  - pyproject.toml version = \"{new_version}\"")
+        print(f"  - pyproject.toml fallback_version = \"{new_version}\"")
+        print(f"  - navien_nwp500/__init__.py fallback version")
+        print(f"  - CHANGELOG.md")
+        print(f"  - Git tag: v{new_version}")
         return
 
     # Check for uncommitted changes
@@ -155,14 +219,17 @@ def main():
         if response.lower() != "y":
             sys.exit(1)
 
-    # Update changelog
+    # Update version in all relevant files
+    update_version_in_pyproject(new_version)
+    update_setuptools_scm_fallback(new_version)
+    update_version_in_init(new_version)
     update_changelog(args.version_type, new_version)
 
-    # Commit changelog changes
-    run_command("git add CHANGELOG.md")
-    run_command(f'git commit -m "Update changelog for version {new_version}"')
+    # Commit all changes
+    run_command("git add pyproject.toml CHANGELOG.md navien_nwp500/__init__.py")
+    run_command(f'git commit -m "Bump version to {new_version}"')
 
-    # Create git tag (this will trigger setuptools-scm versioning)
+    # Create git tag
     if create_git_tag(new_version, args.push):
         print(f"✅ Version {new_version} prepared successfully")
 
