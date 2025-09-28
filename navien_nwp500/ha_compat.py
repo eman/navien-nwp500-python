@@ -10,7 +10,10 @@ advanced capabilities of the NaviLink library, ensuring all critical data
 including dhw_charge_percent is properly exposed.
 """
 
+import asyncio
 import logging
+import time
+from datetime import datetime
 from typing import Any, Dict, Optional, Union
 
 from .client import NaviLinkClient
@@ -301,8 +304,192 @@ class NavienClient:
         else:
             return "off"
 
+    async def start_monitoring(
+        self,
+        callback: Optional[callable] = None,
+        polling_interval: int = 300,
+        use_mqtt: bool = True,
+    ) -> bool:
+        """
+        Start real-time monitoring with periodic updates.
+
+        Args:
+            callback: Optional callback function to receive updates: callback(device_data: Dict[str, Any])
+            polling_interval: Seconds between updates (default: 300 = 5 minutes)
+            use_mqtt: Whether to use MQTT streaming (True) or REST polling (False)
+
+        Returns:
+            True if monitoring started successfully
+
+        Example:
+            async def on_update(data):
+                print(f"Tank charge: {data['dhw_charge_percent']}%")
+                print(f"Temperature: {data['water_temperature']}°F")
+
+            await client.start_monitoring(callback=on_update, polling_interval=60)
+        """
+        if not self._authenticated or not self._device:
+            raise Exception("Must authenticate before starting monitoring")
+
+        try:
+            if use_mqtt:
+                # Get MQTT connection for real-time updates
+                mqtt_conn = await self._device.get_mqtt_connection()
+                await mqtt_conn.connect()
+
+                # Set up status callback that converts to HA format
+                async def mqtt_status_callback(status):
+                    try:
+                        # Convert raw status to HA compatible format
+                        ha_data = self._convert_status_to_ha_format(status)
+
+                        # Call user callback if provided
+                        if callback:
+                            if asyncio.iscoroutinefunction(callback):
+                                await callback(ha_data)
+                            else:
+                                callback(ha_data)
+
+                        logger.debug("MQTT status update processed")
+                    except Exception as e:
+                        logger.error(f"Error in MQTT callback: {e}")
+
+                mqtt_conn.set_status_callback(mqtt_status_callback)
+
+                # Start MQTT monitoring
+                await mqtt_conn.start_monitoring(polling_interval)
+                logger.info(
+                    f"Started MQTT monitoring with {polling_interval}s interval"
+                )
+
+            else:
+                # Fallback to REST API polling
+                self._polling_task = asyncio.create_task(
+                    self._rest_polling_loop(callback, polling_interval)
+                )
+                logger.info(f"Started REST polling with {polling_interval}s interval")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to start monitoring: {e}")
+            raise Exception(f"Monitoring startup failed: {e}")
+
+    async def stop_monitoring(self) -> bool:
+        """
+        Stop real-time monitoring.
+
+        Returns:
+            True if monitoring stopped successfully
+        """
+        try:
+            # Stop MQTT monitoring if active
+            if self._device:
+                await self._device.stop_monitoring()
+
+            # Stop REST polling if active
+            if hasattr(self, "_polling_task") and self._polling_task:
+                self._polling_task.cancel()
+                try:
+                    await self._polling_task
+                except asyncio.CancelledError:
+                    pass
+                self._polling_task = None
+
+            logger.info("Monitoring stopped")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to stop monitoring: {e}")
+            return False
+
+    def _convert_status_to_ha_format(self, status) -> Dict[str, Any]:
+        """
+        Convert raw DeviceStatus to Home Assistant compatible format.
+
+        This is the same conversion logic as get_device_data() but
+        optimized for real-time updates.
+        """
+        return {
+            # Temperature Data (°F)
+            "water_temperature": float(status.dhw_temperature),
+            "set_temperature": float(status.dhw_temperature_setting),
+            "target_temp": float(status.dhw_temperature_setting),
+            "tank_temp": float(status.dhw_temperature),
+            "inlet_temperature": float(status.tank_upper_temperature) / 10.0,
+            "outlet_temperature": float(status.dhw_temperature),
+            "ambient_temperature": float(status.ambient_temperature) / 10.0,
+            # Power & Energy Data
+            "power_consumption": float(status.current_inst_power),
+            "current_power": float(status.current_inst_power),
+            "power": float(status.current_inst_power),
+            # Status Data
+            "operating_mode": self._get_operation_mode_name(status.operation_mode),
+            "mode": self._get_operation_mode_name(status.operation_mode),
+            "operation_mode": self._get_operation_mode_name(status.operation_mode),
+            "error_code": str(status.error_code) if status.error_code != 0 else None,
+            "error": str(status.error_code) if status.error_code != 0 else None,
+            "fault_code": str(status.error_code) if status.error_code != 0 else None,
+            # Component Status
+            "compressor_status": self._get_component_status(status.comp_use),
+            "compressor": self._get_component_status(status.comp_use),
+            "heating_element_status": self._get_heater_status(
+                status.heat_upper_use, status.heat_lower_use
+            ),
+            "heater": self._get_heater_status(
+                status.heat_upper_use, status.heat_lower_use
+            ),
+            # CRITICAL: DHW Charge Percent
+            "dhw_charge_percent": float(status.dhw_charge_per),
+            "tank_charge_percent": float(status.dhw_charge_per),
+            "charge_level": float(status.dhw_charge_per),
+            # Additional fields
+            "wifi_signal_strength": status.wifi_rssi,
+            "device_connected": bool(getattr(status, "device_connected", 1)),
+            "dhw_demand_active": bool(status.dhw_use),
+            # Timestamp for real-time updates
+            "last_update": time.time(),
+            "timestamp": datetime.now().isoformat(),
+            # Raw status for debugging
+            "_raw_operation_mode": status.operation_mode,
+            "_raw_error_code": status.error_code,
+        }
+
+    async def _rest_polling_loop(self, callback: callable, interval: int):
+        """
+        REST API polling loop for when MQTT is not available.
+        """
+        try:
+            while True:
+                try:
+                    # Get device data via REST API
+                    ha_data = await self.get_device_data()
+
+                    # Call user callback if provided
+                    if callback:
+                        if asyncio.iscoroutinefunction(callback):
+                            await callback(ha_data)
+                        else:
+                            callback(ha_data)
+
+                    # Wait for next interval
+                    await asyncio.sleep(interval)
+
+                except asyncio.CancelledError:
+                    logger.info("REST polling cancelled")
+                    break
+                except Exception as e:
+                    logger.error(f"Error in REST polling: {e}")
+                    await asyncio.sleep(interval)  # Continue polling on error
+
+        except asyncio.CancelledError:
+            logger.info("REST polling loop cancelled")
+
     async def close(self):
         """Close client and cleanup resources."""
+        # Stop monitoring first
+        await self.stop_monitoring()
+
         if self._client:
             await self._client.close()
         self._authenticated = False

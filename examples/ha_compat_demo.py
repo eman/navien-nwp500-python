@@ -137,7 +137,52 @@ async def demo_home_assistant_interface():
             formatted_data = json.dumps(device_data, indent=2, default=str)
             logger.info(formatted_data)
 
-            # Step 3: Demonstrate control capabilities (commented out for safety)
+            # Step 3: Demonstrate MQTT streaming capabilities (NEW!)
+            logger.info("\n🔴 MQTT Real-time Monitoring Available (NEW!):")
+            logger.info("   - start_monitoring(callback, interval) # MQTT streaming")
+            logger.info("   - stop_monitoring() # Stop real-time updates")
+            logger.info("   - Automatic data conversion to HA format")
+
+            # Demonstrate streaming if enabled
+            enable_streaming_demo = True  # Set to True to test streaming
+            if enable_streaming_demo:
+                logger.info("📡 Starting 30-second MQTT streaming demo...")
+
+                update_count = 0
+
+                async def stream_callback(ha_data):
+                    nonlocal update_count
+                    update_count += 1
+                    logger.info(f"📊 Stream Update #{update_count}:")
+                    logger.info(
+                        f"   Tank: {ha_data['dhw_charge_percent']}% | Temp: {ha_data['water_temperature']}°F | Power: {ha_data['power_consumption']}W"
+                    )
+
+                try:
+                    # Start MQTT streaming with 10-second updates
+                    await client.start_monitoring(
+                        callback=stream_callback, polling_interval=10, use_mqtt=True
+                    )
+
+                    # Let it run for 30 seconds
+                    await asyncio.sleep(30)
+
+                    # Stop monitoring
+                    await client.stop_monitoring()
+                    logger.info(
+                        f"✅ MQTT streaming demo completed ({update_count} updates received)"
+                    )
+
+                except Exception as e:
+                    logger.warning(
+                        f"⚠️ MQTT streaming demo failed (may fallback to REST): {e}"
+                    )
+            else:
+                logger.info(
+                    "   (Streaming demo disabled - set enable_streaming_demo=True)"
+                )
+
+            # Step 4: Demonstrate control capabilities (commented out for safety)
             logger.info("\n🎛️ Control Capabilities Available:")
             logger.info("   - set_temperature(125.0) # Set target temperature")
             logger.info("   - set_operation_mode('heat_pump') # Heat pump only")
@@ -308,9 +353,12 @@ async def main():
     logger.info("1. Original NaviLinkClient interface continues to work unchanged")
     logger.info("2. New NavienClient provides Home Assistant compatible interface")
     logger.info(
-        "3. All required fields including critical dhw_charge_percent are available"
+        "3. MQTT real-time streaming with automatic HA format conversion (NEW!)"
     )
-    logger.info("4. Command-line examples continue to function normally")
+    logger.info(
+        "4. All required fields including critical dhw_charge_percent are available"
+    )
+    logger.info("5. Command-line examples continue to function normally")
     logger.info("\n" + "=" * 80)
 
     # Demonstrate both interfaces work
