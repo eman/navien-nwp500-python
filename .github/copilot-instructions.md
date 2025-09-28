@@ -1,5 +1,44 @@
 # NaviLink Python Library - Copilot Instructions
 
+## 🚨 **CRITICAL: AI Assistant Test Requirements** 
+
+### **🧪 MANDATORY TESTING WORKFLOW**
+**ALL AI assistants and coding tools MUST follow this workflow before submitting any code:**
+
+1. **✅ ALWAYS run tests before submitting code:**
+   ```bash
+   pytest tests/ --ignore=tests/legacy -v
+   ```
+
+2. **✅ ALWAYS ensure tests pass (target: 24+ passing tests):**
+   ```bash
+   # Expected result: 24 passed, 3 skipped (or better)
+   # If tests fail, you MUST fix them before submitting
+   ```
+
+3. **✅ ALWAYS run code formatting before submitting:**
+   ```bash
+   black navien_nwp500 tests examples
+   isort navien_nwp500 tests examples
+   ```
+
+4. **✅ If you break tests, you MUST fix them in the same commit:**
+   - Debug the test failures
+   - Update code to make tests pass
+   - Never submit code with failing tests
+   - Exception: Only if explicitly asked to create failing tests for debugging
+
+### **🎯 Test Quality Standards**
+- **Current baseline: 24 passing tests (89% pass rate)**
+- **DO NOT decrease the number of passing tests**
+- **If you add features, add corresponding tests**
+- **Legacy tests in `tests/legacy/` are disabled - don't break the working tests**
+
+### **⚠️ Zero Tolerance Policy**
+**Code submissions that break existing tests will be rejected.** Always verify your changes don't introduce regressions.
+
+---
+
 ## Project Overview
 This is a production-ready Python library for communicating with the Navien NaviLink service, enabling control and monitoring of Navien water heaters and smart home devices. The library provides both REST API access and AWS IoT Core MQTT real-time communication capabilities, with a focus on heat pump water heater monitoring and data collection.
 

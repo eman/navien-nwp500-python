@@ -30,24 +30,89 @@ Thank you for your interest in contributing to NaviLink! This guide will help yo
 
 ## 📋 Code Quality Standards
 
-### **🔍 REQUIRED: All code must pass formatting and linting checks**
+### **🧪 CRITICAL: Testing Requirements for ALL Contributors**
 
-**This applies to ALL contributors, including AI coding assistants, automated tools, and human developers.**
+**⚠️ This applies to ALL contributors: human developers, AI coding assistants, automated tools, and any code generation systems.**
 
-Before submitting any pull request, ensure your code passes all quality checks:
+### **🚨 MANDATORY PRE-SUBMISSION CHECKLIST**
 
+**BEFORE submitting ANY code changes, you MUST:**
+
+#### **1. ✅ Run Tests and Verify They Pass**
+```bash
+# Run the test suite (REQUIRED - must pass before submission)
+pytest tests/ --ignore=tests/legacy -v
+
+# Expected result: 24+ passed, 3 skipped (or better)
+# ❌ NEVER submit code if tests are failing
+# ❌ NEVER decrease the number of passing tests
+```
+
+#### **2. ✅ Format Code (CI will reject improperly formatted code)**
 ```bash
 # Format code with Black (REQUIRED - CI will fail if not formatted)
-black .
+black navien_nwp500 tests examples
 
-# Sort imports with isort (REQUIRED)
-isort .
+# Sort imports with isort (REQUIRED)  
+isort navien_nwp500 tests examples
+```
 
-# Run type checking (recommended)
+#### **3. ✅ Run Type Checking (Recommended)**
+```bash
+# Type checking (helps catch issues early)
 mypy navien_nwp500
+```
 
-# Run tests (REQUIRED)
-pytest tests/ -v
+### **🎯 Test Quality Standards**
+
+#### **Current Baseline (DO NOT BREAK):**
+- ✅ **24 passing tests** (core functionality validated)
+- ✅ **3 skipped tests** (integration tests requiring credentials)
+- ✅ **89% pass rate** (24/27 tests)
+- ✅ **Legacy tests disabled** (`tests/legacy/` - these are broken by design)
+
+#### **Rules for Test Changes:**
+- **✅ Adding tests**: Always welcome when adding features
+- **❌ Breaking existing tests**: Must be fixed in same commit
+- **❌ Reducing passing test count**: Never acceptable  
+- **✅ Fixing broken tests**: Encouraged (but not required for contributions)
+
+### **🚫 Zero Tolerance Policy**
+
+**Code submissions will be REJECTED if they:**
+- Break existing working tests
+- Reduce the number of passing tests
+- Are not properly formatted with Black/isort
+- Don't include test fixes for any test breakage they introduce
+
+**Exception:** Only when explicitly asked to create failing tests for debugging purposes.
+
+### **🤖 Special Instructions for AI Assistants**
+
+**If you are an AI coding assistant or automated tool:**
+- **ALWAYS run tests before suggesting code changes**
+- **ALWAYS verify your changes don't break existing functionality**  
+- **ALWAYS include test fixes if your changes break tests**
+- **NEVER submit code with failing tests unless explicitly asked**
+- **ALWAYS format code with Black and isort**
+
+### **🔍 Additional Quality Checks**
+
+```bash
+# Linting (helps catch issues)
+flake8 navien_nwp500 --exclude=navien_nwp500/_version.py
+
+# Full development workflow check
+make test  # If using Makefile
+```
+
+### **✅ Quick Pre-Submission Command**
+```bash
+# Run this before ANY code submission:
+black navien_nwp500 tests examples && isort navien_nwp500 tests examples && pytest tests/ --ignore=tests/legacy -v
+```
+
+## 🚀 Development Workflow
 
 # Check all quality standards at once
 make check  # or run individual commands above
