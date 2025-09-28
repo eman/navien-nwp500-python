@@ -36,6 +36,10 @@ pip install git+https://github.com/eman/navien-nwp500-python.git
 
 > **Note**: Installation from GitHub archives now works reliably in v1.2.2+. Earlier versions had setuptools-scm issues that are now resolved.
 
+### Package Information
+
+This package builds universal wheels (`py3-none-any`) that work on all platforms and Python versions 3.9+. No platform-specific compilation is needed as this is a pure Python package.
+
 ## Quick Start
 
 ### 1. Setup Credentials

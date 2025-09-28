@@ -14,16 +14,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Static version configuration**: Added fallback version handling for archives without git metadata  
 - **Enhanced MANIFEST.in**: Ensure _version.py is included in all distributions
 - **Robust setup.py**: Handle version detection gracefully when setuptools-scm is unavailable
+- **Fixed wheel building**: Replaced cibuildwheel with proper pure Python wheel configuration
+
+#### GitHub Actions & CI
+- **Universal wheel building**: Generate single `py3-none-any` wheel instead of platform-specific wheels
+- **Multi-platform testing**: Validate installation across platforms and Python versions
+- **Faster builds**: Eliminated unnecessary cibuildwheel complexity for pure Python package
 
 #### What This Fixes
 - Resolves `setuptools-scm was unable to detect version` error when installing from GitHub archive URLs
+- Fixes `Build failed because a pure Python wheel was generated` cibuildwheel error
 - Enables reliable `pip install` from `https://github.com/eman/navien-nwp500-python/archive/refs/tags/1.2.2.zip`
 - Maintains backward compatibility with all existing installation methods
+
+#### Enhanced Home Assistant Integration
+- **MQTT streaming support**: Added real-time monitoring with `start_monitoring()` and `stop_monitoring()`
+- **Automatic data conversion**: MQTT status updates converted to HA-compatible format
+- **Fallback to REST polling**: Graceful degradation if MQTT connection fails
+- **Production examples**: Complete HA integration patterns with `ha_streaming_example.py`
 
 #### Technical Details
 - Removed `setuptools-scm` from `[build-system] requires` in pyproject.toml
 - Added static `version = "1.2.2"` in pyproject.toml  
 - Updated fallback version handling in `__init__.py` and `setup.py`
+- Added `[tool.bdist_wheel] universal = true` for proper pure Python wheel building
 - All tests continue to pass (41 passed, 3 skipped)
 
 ## [1.0.0] - 2025-09-27
