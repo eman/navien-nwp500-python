@@ -209,7 +209,7 @@ def mock_raw_device_data() -> Dict[str, Any]:
     return {
         "deviceType": 52,
         "macAddress": "04786332fca0",
-        "additionalValue": "5322", 
+        "additionalValue": "5322",
         "deviceName": "NWP500",
         "connected": 2,
         "homeSeq": 25004,

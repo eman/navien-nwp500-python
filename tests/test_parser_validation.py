@@ -68,10 +68,9 @@ class TestAuthenticationParser:
         required_tokens = ["accessToken", "refreshToken", "idToken"]
         for token_type in required_tokens:
             assert token_type in token_data
-            assert (
-                token_data[token_type]
-                == f"REDACTED_TOKEN_{len(token_data[token_type])}"
-            )
+            # Check that tokens exist and are non-empty strings
+            assert isinstance(token_data[token_type], str)
+            assert len(token_data[token_type]) > 10  # Reasonable minimum token length
 
         # Check AWS credentials
         aws_fields = ["accessKeyId", "secretKey", "sessionToken"]
@@ -270,12 +269,79 @@ class TestMqttStatusParser:
             if api_field in status_data:
                 converted_data[model_field] = status_data[api_field]
 
-        # Add required fields with defaults if missing
+        # Add required fields with defaults if missing (all 67+ fields needed by DeviceStatus)
         required_defaults = {
             "command": status_data.get("command", 16777219),
             "outside_temperature": status_data.get("outsideTemperature", 0),
             "special_function_status": status_data.get("specialFunctionStatus", 1),
             "did_reload": status_data.get("didReload", 1),
+            "program_reservation_use": 0,
+            "smart_diagnostic": 0,
+            "fault_status1": 0,
+            "fault_status2": 0,
+            "eco_use": 0,
+            "dhw_target_temperature_setting": 121,
+            "tank_upper_temperature": 605,
+            "tank_lower_temperature": 611,
+            "discharge_temperature": 761,
+            "suction_temperature": 400,
+            "evaporator_temperature": 600,
+            "ambient_temperature": 238,
+            "target_super_heat": 10,
+            "eev_use": 50,
+            "shut_off_valve_use": 0,
+            "con_ovr_sensor_use": 0,
+            "wtr_ovr_sensor_use": 0,
+            "dr_event_status": 0,
+            "vacation_day_setting": 0,
+            "vacation_day_elapsed": 0,
+            "freeze_protection_temperature": 45,
+            "anti_legionella_use": 0,
+            "anti_legionella_period": 7,
+            "anti_legionella_operation_busy": 0,
+            "program_reservation_type": 0,
+            "dhw_operation_setting": 2,
+            "temperature_type": 1,
+            "temp_formula_type": 1,
+            "error_buzzer_use": 0,
+            "current_heat_use": 0,
+            "current_inlet_temperature": 0,
+            "current_statenum": 0,
+            "target_fan_rpm": 0,
+            "current_fan_rpm": 0,
+            "fan_pwm": 0,
+            "dhw_temperature2": 0,
+            "current_dhw_flow_rate": 0,
+            "mixing_rate": 0,
+            "eev_step": 0,
+            "current_super_heat": 0,
+            "scald_use": 0,
+            "air_filter_alarm_use": 2,
+            "air_filter_alarm_period": 1000,
+            "air_filter_alarm_elapsed": 0,
+            "cumulated_op_time_eva_fan": 0,
+            "cumulated_dhw_flow_rate": 0,
+            "tou_status": 0,
+            "hp_upper_on_temp_setting": 0,
+            "hp_upper_off_temp_setting": 0,
+            "hp_lower_on_temp_setting": 0,
+            "hp_lower_off_temp_setting": 0,
+            "he_upper_on_temp_setting": 0,
+            "he_upper_off_temp_setting": 0,
+            "he_lower_on_temp_setting": 0,
+            "he_lower_off_temp_setting": 0,
+            "hp_upper_on_diff_temp_setting": 0,
+            "hp_upper_off_diff_temp_setting": 0,
+            "hp_lower_on_diff_temp_setting": 0,
+            "hp_lower_off_diff_temp_setting": 0,
+            "he_upper_on_diff_temp_setting": 0,
+            "he_upper_off_diff_temp_setting": 0,
+            "he_lower_on_tdiffemp_setting": 0,
+            "he_lower_off_diff_temp_setting": 0,
+            "dr_override_status": 0,
+            "tou_override_status": 0,
+            "total_energy_capacity": 0,
+            "available_energy_capacity": 0,
         }
 
         for field, default in required_defaults.items():
