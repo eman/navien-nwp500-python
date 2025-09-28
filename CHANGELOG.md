@@ -100,11 +100,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
+## [0.0.1] - 2025-09-28
+
 ### Planned Features
 - Additional device type support (tankless water heaters)
 - Energy usage analytics and reporting
 - Home Assistant integration
 - Advanced scheduling and automation features
 
-[Unreleased]: https://github.com/eman/navien-nwp500-python/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/eman/navien-nwp500-python/compare/v0.0.1...HEAD
+[0.0.1]: https://github.com/eman/navien-nwp500-python/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/eman/navien-nwp500-python/releases/tag/v1.0.0
