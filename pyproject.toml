@@ -75,11 +75,17 @@ package-dir = {"" = "."}
 [tool.setuptools.packages.find]
 exclude = ["tests*", "examples*", "docs*", "reference*"]
 
-[tool.setuptools_scm]
+# Wheel configuration - this is a pure Python package
+[tool.bdist_wheel]
+universal = true
+
+# Note: setuptools-scm configuration kept for development use
+# but not used in builds (see static version above)
+[tool.setuptools_scm] 
 write_to = "navien_nwp500/_version.py"
 version_scheme = "post-release"
 local_scheme = "dirty-tag"
-fallback_version = "1.2.1"
+fallback_version = "1.2.2"
 
 # Black formatter configuration
 [tool.black]

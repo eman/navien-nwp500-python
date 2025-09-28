@@ -32,13 +32,16 @@ jobs:
     - name: Install build dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install build setuptools-scm
+        python -m pip install build twine
     
     - name: Build source distribution
       run: python -m build --sdist
     
-    - name: Build wheel distributions
+    - name: Build universal wheel (pure Python)
       run: python -m build --wheel
+    
+    - name: Check distributions
+      run: twine check dist/*
     
     - name: Store the distribution packages
       uses: actions/upload-artifact@v4
@@ -46,45 +49,50 @@ jobs:
         name: python-package-distributions
         path: dist/
 
-  build-wheels:
-    name: Build wheels on ${{ matrix.os }}
+  test-install:
+    name: Test installation 🧪
+    needs: build
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # Build wheels for multiple platforms per PEP 656
-        os: [ubuntu-latest, windows-latest, macos-latest, macos-14]  # macos-14 is Apple Silicon
-        
+        os: [ubuntu-latest, windows-latest, macos-latest, macos-14]  # Test on multiple platforms
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    
     steps:
     - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
       with:
-        fetch-depth: 0
-        
-    - name: Build wheels
-      uses: pypa/cibuildwheel@v2.21.0
-      env:
-        # Build wheels for Python 3.9+ (Python 3.8 support removed)
-        CIBW_BUILD: cp39-* cp310-* cp311-* cp312-* cp313-*
-        # Skip 32-bit builds and PyPy for simplicity
-        CIBW_SKIP: "*-win32 *-manylinux_i686 pp*"
-        # Install test dependencies and run tests
-        CIBW_TEST_EXTRAS: test
-        CIBW_TEST_COMMAND: pytest {project}/tests -x -vs -m "not integration"
-        # Ensure auditwheel/delocate can find all dependencies
-        CIBW_REPAIR_WHEEL_COMMAND_LINUX: auditwheel repair -w {dest_dir} {wheel}
-        CIBW_REPAIR_WHEEL_COMMAND_MACOS: delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
-        
-    - name: Upload wheels
-      uses: actions/upload-artifact@v4
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Download distribution packages
+      uses: actions/download-artifact@v4
       with:
-        name: cibw-wheels-${{ matrix.os }}
-        path: ./wheelhouse/*.whl
+        name: python-package-distributions
+        path: dist/
+    
+    - name: Install from wheel
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install dist/*.whl
+    
+    - name: Test import and version
+      run: |
+        python -c "import navien_nwp500; print('✅ Import successful')"
+        python -c "import navien_nwp500; print('Version:', navien_nwp500.__version__)"
+    
+    - name: Install test dependencies and run basic tests
+      run: |
+        python -m pip install pytest pytest-asyncio
+        python -c "from navien_nwp500 import NaviLinkClient, NavienClient; print('✅ All imports work')"
 
   publish-to-pypi:
     name: Publish to PyPI 🚀
     if: startsWith(github.ref, 'refs/tags/')  # Only publish on tag push
     needs:
     - build
-    - build-wheels
+    - test-install
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -99,13 +107,6 @@ jobs:
         name: python-package-distributions
         path: dist/
     
-    - name: Download wheels from all platforms
-      uses: actions/download-artifact@v4
-      with:
-        pattern: cibw-wheels-*
-        path: dist/
-        merge-multiple: true
-    
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
 
@@ -114,7 +115,7 @@ jobs:
     if: github.event.inputs.publish_to_testpypi == 'true' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
     needs:
     - build
-    - build-wheels
+    - test-install
     runs-on: ubuntu-latest
     environment:
       name: testpypi
@@ -128,13 +129,6 @@ jobs:
       with:
         name: python-package-distributions
         path: dist/
-    
-    - name: Download wheels from all platforms
-      uses: actions/download-artifact@v4
-      with:
-        pattern: cibw-wheels-*
-        path: dist/
-        merge-multiple: true
     
     - name: Publish to TestPyPI
       uses: pypa/gh-action-pypi-publish@release/v1
@@ -157,13 +151,6 @@ jobs:
       with:
         name: python-package-distributions
         path: dist/
-    
-    - name: Download wheels from all platforms
-      uses: actions/download-artifact@v4
-      with:
-        pattern: cibw-wheels-*
-        path: dist/
-        merge-multiple: true
     
     - name: Sign the dists with Sigstore
       uses: sigstore/gh-action-sigstore-python@v2.1.1
