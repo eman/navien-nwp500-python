@@ -360,35 +360,14 @@ async def main():
         logging.getLogger().setLevel(logging.DEBUG)
 
     monitor = None
-    monitoring_task = None
 
     # Create shutdown event for proper asyncio integration
     shutdown_event = asyncio.Event()
-    shutdown_count = 0
 
-    # Set up signal handling - simplified approach
+    # Simple signal handler - just set event once
     def signal_handler(signum=None, frame=None):
-        nonlocal shutdown_count
-        shutdown_count += 1
-
-        if shutdown_count == 1:
-            logger.info("🛑 Shutdown signal received, stopping gracefully...")
-            shutdown_event.set()
-            # Stop monitor immediately
-            if monitor:
-                monitor.running = False
-
-        elif shutdown_count == 2:
-            logger.info("🛑 Second signal - forcing immediate shutdown...")
-            # Cancel monitoring task directly
-            if monitoring_task and not monitoring_task.done():
-                monitoring_task.cancel()
-            # Force exit after brief delay
-            asyncio.get_event_loop().call_later(1.0, lambda: os._exit(1))
-
-        else:
-            logger.info("🛑 Force exit now!")
-            os._exit(1)
+        logger.info("🛑 Shutdown signal received...")
+        shutdown_event.set()
 
     # Register signal handlers
     signal.signal(signal.SIGINT, signal_handler)
@@ -426,35 +405,31 @@ async def main():
 
             # Create monitoring task
             monitoring_task = asyncio.create_task(monitor.run_monitoring())
-            shutdown_task = asyncio.create_task(shutdown_event.wait())
 
             # Wait for either monitoring to complete or shutdown signal
-            done, pending = await asyncio.wait(
-                [monitoring_task, shutdown_task],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-
-            # Cancel remaining tasks
-            for task in pending:
-                if not task.cancelled():
-                    task.cancel()
-
-            # Check if shutdown was requested
-            if shutdown_task in done:
-                logger.info("🛑 Shutdown requested, cancelling monitoring...")
-                if not monitoring_task.cancelled():
-                    monitoring_task.cancel()
-
-            # Wait briefly for cancellation to complete
             try:
-                await asyncio.wait_for(
-                    asyncio.gather(*pending, return_exceptions=True), timeout=2.0
+                await asyncio.wait(
+                    [monitoring_task, asyncio.create_task(shutdown_event.wait())],
+                    return_when=asyncio.FIRST_COMPLETED,
                 )
-            except asyncio.TimeoutError:
-                logger.warning("⚠️ Some tasks didn't cancel in time")
 
-            logger.info("🏁 Monitoring completed")
-            return True
+                # Stop monitor and cancel task
+                if monitor:
+                    monitor.running = False
+
+                if not monitoring_task.done():
+                    monitoring_task.cancel()
+                    try:
+                        await monitoring_task
+                    except asyncio.CancelledError:
+                        pass
+
+                logger.info("🏁 Monitoring completed")
+                return True
+
+            except asyncio.CancelledError:
+                logger.info("🛑 Monitoring cancelled")
+                return True
 
         except Exception as e:
             logger.error(f"❌ Monitoring session failed: {e}")

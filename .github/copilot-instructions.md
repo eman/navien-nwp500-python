@@ -41,7 +41,7 @@
    
    # Test release workflow (before submitting release PRs)
    # Verify GitHub Actions will pass:
-   # 1. All tests pass across Python 3.8-3.13
+   # 1. All tests pass across Python 3.9-3.13 (Python 3.8 removed)
    # 2. Black formatting passes
    # 3. Package builds successfully 
    # 4. No breaking changes to API
@@ -688,7 +688,7 @@ The `reference/` directory contains:
 - **Library Version**: 1.0.0 (Production Ready)
 - **Tested Device**: Navien NWP500 Heat Pump Water Heater
 - **MQTT Protocol**: MQTT3 (stable), MQTT5 (infrastructure ready)
-- **Python Compatibility**: 3.8+ (async/await required)
+- **Python Compatibility**: 3.9+ (async/await required, Python 3.8 support removed)
 
 ## Troubleshooting (Production Experience) ✅
 
@@ -713,7 +713,7 @@ The `reference/` directory contains:
 - **Library Version**: 1.0.0 (Production Ready)
 - **Tested Device**: Navien NWP500 Heat Pump Water Heater
 - **MQTT Protocol**: MQTT3 (stable), MQTT5 (infrastructure ready)
-- **Python Compatibility**: 3.8+ (async/await required)
+- **Python Compatibility**: 3.9+ (async/await required, Python 3.8 support removed)
 ## Critical Code Maintenance Notes ⚠️
 
 ### Temperature Sensor Field Names (DO NOT "FIX")
