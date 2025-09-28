@@ -45,7 +45,7 @@ try:
     from ._version import __version__
 except ImportError:
     # Fallback version for installations without git metadata (e.g., GitHub archive)
-    __version__ = "1.2.2"
+    __version__ = "1.3.0"
 
 __author__ = "Emmanuel Levijarvi"
 

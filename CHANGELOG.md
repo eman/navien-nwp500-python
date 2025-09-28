@@ -109,6 +109,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - 
 
+## [1.3.0] - 2025-09-28
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
 ## [1.2.4] - 2025-09-28
 
 ### Added
@@ -139,7 +150,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Home Assistant integration
 - Advanced scheduling and automation features
 
-[Unreleased]: https://github.com/eman/navien-nwp500-python/compare/v1.2.4...HEAD
+[Unreleased]: https://github.com/eman/navien-nwp500-python/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/eman/navien-nwp500-python/compare/v1.2.4...HEAD
 [1.2.4]: https://github.com/eman/navien-nwp500-python/compare/vv1.2.4...HEAD
 [v1.2.4]: https://github.com/eman/navien-nwp500-python/compare/v0.0.1...HEAD
 [0.0.1]: https://github.com/eman/navien-nwp500-python/compare/v1.0.0...HEAD
