@@ -14,7 +14,7 @@ import aiohttp
 from .aws_iot_websocket import AWSIoTWebSocketConnection
 from .config import ReconnectConfig
 from .exceptions import MQTTError, WebSocketError
-from .models import DeviceStatus, EnergyUsage, Reservation
+from .models import DeviceStatus, EnergyUsage, Reservation, calibrate_temperature_from_raw, convert_ambient_temperature
 
 if TYPE_CHECKING:
     from .client import NaviLinkClient
@@ -560,8 +560,8 @@ class NaviLinkMQTT:
                 ),
                 dhw_use=1 if channel_data.get("onDemandUseFlag") else 0,
                 dhw_use_sustained=0,
-                dhw_temperature=channel_data.get("avgOutletTemp", 0),
-                dhw_temperature_setting=channel_data.get("DHWSettingTemp", 0),
+                dhw_temperature=calibrate_temperature_from_raw(channel_data.get("avgOutletTemp", 0)),
+                dhw_temperature_setting=calibrate_temperature_from_raw(channel_data.get("DHWSettingTemp", 0)),
                 dhw_charge_per=dhw_charge_percent,  # Use correct field name from model
                 program_reservation_use=0,
                 smart_diagnostic=0,
@@ -569,7 +569,7 @@ class NaviLinkMQTT:
                 fault_status2=0,
                 wifi_rssi=channel_data.get("wifiRssi", 0),
                 eco_use=1 if channel_data.get("ecoMode", False) else 0,
-                dhw_target_temperature_setting=channel_data.get("DHWSettingTemp", 0),
+                dhw_target_temperature_setting=calibrate_temperature_from_raw(channel_data.get("DHWSettingTemp", 0)),
                 heat_pump_status=1 if heat_pump_status else 0,
                 resistance_heater_status=1 if resistance_status else 0,
                 defrost_mode=1 if channel_data.get("defrostMode", False) else 0,
@@ -640,16 +640,16 @@ class NaviLinkMQTT:
                 freeze_protection_use=status_data.get("freezeProtectionUse", 0),
                 dhw_use=status_data.get("dhwUse", 0),
                 dhw_use_sustained=status_data.get("dhwUseSustained", 0),
-                dhw_temperature=status_data.get("dhwTemperature", 0),
-                dhw_temperature_setting=status_data.get("dhwTemperatureSetting", 0),
+                dhw_temperature=calibrate_temperature_from_raw(status_data.get("dhwTemperature", 0)),
+                dhw_temperature_setting=calibrate_temperature_from_raw(status_data.get("dhwTemperatureSetting", 0)),
                 program_reservation_use=status_data.get("programReservationUse", 0),
                 smart_diagnostic=status_data.get("smartDiagnostic", 0),
                 fault_status1=status_data.get("faultStatus1", 0),
                 fault_status2=status_data.get("faultStatus2", 0),
                 wifi_rssi=status_data.get("wifiRssi", 0),
                 eco_use=status_data.get("ecoUse", 0),
-                dhw_target_temperature_setting=status_data.get(
-                    "dhwTargetTemperatureSetting", 0
+                dhw_target_temperature_setting=calibrate_temperature_from_raw(
+                    status_data.get("dhwTargetTemperatureSetting", 0)
                 ),
                 # Key fields we're interested in for monitoring
                 dhw_charge_per=status_data.get(
@@ -660,7 +660,7 @@ class NaviLinkMQTT:
                 discharge_temperature=status_data.get("dischargeTemperature", 0),
                 suction_temperature=status_data.get("suctionTemperature", 0),
                 evaporator_temperature=status_data.get("evaporatorTemperature", 0),
-                ambient_temperature=status_data.get("ambientTemperature", 0),
+                ambient_temperature=int(convert_ambient_temperature(status_data.get("ambientTemperature", 0))),
                 target_super_heat=status_data.get("targetSuperHeat", 0),
                 comp_use=status_data.get("compUse", 0),  # Heat pump compressor
                 eev_use=status_data.get("eevUse", 0),

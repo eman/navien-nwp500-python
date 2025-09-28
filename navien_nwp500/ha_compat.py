@@ -3,7 +3,7 @@ Home Assistant Compatibility Interface for NaviLink Library.
 
 This module provides a simplified interface that matches the Home Assistant
 integration requirements while maintaining full compatibility with the
-production-grade NaviLink library.
+NaviLink library.
 
 The interface bridges the gap between Home Assistant's expected API and the
 advanced capabilities of the NaviLink library, ensuring all critical data
@@ -25,7 +25,7 @@ from .exceptions import (
     DeviceError,
     NaviLinkError,
 )
-from .models import DeviceStatus
+from .models import DeviceStatus, convert_ambient_temperature
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class NavienClient:
     Home Assistant compatible client for Navien water heaters.
 
     This class provides a simplified interface that matches the Home Assistant
-    integration requirements while leveraging the full power of the production
+    integration requirements while leveraging the full power of the
     NaviLink library underneath.
 
     Example usage:
@@ -62,7 +62,7 @@ class NavienClient:
             email=username, password=password, log_level="INFO"
         )
 
-        # Initialize the production NaviLink client
+        # Initialize the NaviLink client
         self._client: Optional[NaviLinkClient] = None
         self._device: Optional[NaviLinkDevice] = None
         self._authenticated = False
@@ -129,8 +129,7 @@ class NavienClient:
                 "inlet_temperature": float(status.tank_upper_temperature)
                 / 10.0,  # Cold water inlet (0.1°F units)
                 "outlet_temperature": float(status.dhw_temperature),  # Hot water output
-                "ambient_temperature": float(status.ambient_temperature)
-                / 10.0,  # System ambient (0.1°F units)
+                "ambient_temperature": convert_ambient_temperature(status.ambient_temperature),
                 # Power & Energy Data
                 "power_consumption": float(status.current_inst_power),
                 "current_power": float(status.current_inst_power),
@@ -208,10 +207,10 @@ class NavienClient:
             raise Exception("Must authenticate before setting temperature")
 
         try:
-            # Validate temperature range (typical for water heaters)
-            if not (80.0 <= temperature <= 140.0):
+            # Validate temperature range (adjusted for calibrated display temperatures)
+            if not (100.0 <= temperature <= 160.0):
                 raise ValueError(
-                    f"Temperature {temperature}°F outside safe range (80-140°F)"
+                    f"Temperature {temperature}°F outside safe range (100-160°F)"
                 )
 
             # Convert to integer (NaviLink expects integer temperatures)
@@ -418,7 +417,7 @@ class NavienClient:
             "tank_temp": float(status.dhw_temperature),
             "inlet_temperature": float(status.tank_upper_temperature) / 10.0,
             "outlet_temperature": float(status.dhw_temperature),
-            "ambient_temperature": float(status.ambient_temperature) / 10.0,
+            "ambient_temperature": convert_ambient_temperature(status.ambient_temperature),
             # Power & Energy Data
             "power_consumption": float(status.current_inst_power),
             "current_power": float(status.current_inst_power),

@@ -24,7 +24,7 @@ class NaviLinkClient:
     and device management with enterprise configuration support.
 
     Example:
-        # Use environment variables (recommended for production)
+        # Use environment variables (recommended)
         config = NaviLinkConfig.from_environment()
         async with NaviLinkClient(config=config) as client:
             await client.authenticate()

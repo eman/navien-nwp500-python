@@ -28,7 +28,7 @@ Data can be retrieved through two methods:
 | `tank_upper_temperature` | 0.1°F | 320-1800 | **Heat pump evaporator/inlet temperature** | **NOT hot water tank!** Divide by 10 |
 | `tank_lower_temperature` | 0.1°F | 320-1800 | **Heat pump ambient temperature** | **NOT hot water tank!** Divide by 10 |
 | `discharge_temperature` | 0.1°F | 320-1800 | Heat pump discharge/condenser temperature | Divide by 10 for actual °F |
-| `ambient_temperature` | 0.1°F | -400-1200 | Ambient air temperature (needs offset correction) | Divide by 10, may need offset |
+| `ambient_temperature` | °C | -40-50 | **Ambient air temperature in Celsius** | ✅ **VALIDATED**: 21.4°C = 70.5°F (user tested) |
 | `outside_temperature` | °F | -40-120 | External temperature (if available) | May be 0 if no external sensor |
 
 ### Missing: Actual Hot Water Tank Temperatures

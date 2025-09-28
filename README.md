@@ -11,6 +11,7 @@ Control and monitor your Navien NWP500 Heat Pump Water Heater remotely using Pyt
 
 - **🔧 Device Control**: Change temperature settings, DHW modes, and turn your water heater on/off
 - **📊 Real-time Monitoring**: Get live data on tank charge level, temperature, power consumption, and operation modes  
+- **🌡️ Temperature Calibration**: Automatic +20°F calibration to match app/display values
 - **⚡ Async/Await Support**: Built for modern Python with full async support
 - **🏠 Home Assistant Ready**: Perfect for creating custom Home Assistant integrations
 - **📈 Data Export**: Built-in CSV logging for long-term analysis
@@ -139,6 +140,36 @@ The `dhw_charge_per` field (0-100%) shows how much thermal energy is stored in y
 
 ### Power Consumption
 Monitor `current_inst_power` to see energy usage in real-time. Heat pump mode is 8-10x more efficient than electric backup.
+
+## Temperature Calibration
+
+The library automatically calibrates temperature readings to match your app and water heater display values.
+
+### Background
+Raw API temperature values are 20°F lower than what's displayed on the Navien app and water heater panel. The library automatically applies a **+20°F correction** to all temperature readings.
+
+### What This Means
+- ✅ **Temperature values now match your app/display**
+- ✅ **No manual conversion needed** - just use normal temperatures
+- ✅ **Set temperature to 141°F** - library handles the conversion automatically
+- ✅ **Backwards compatible** - existing code works unchanged
+
+### Example
+```python
+# What you see/use: 141°F (matches app display)  
+# What device receives: 121°F (raw protocol value)
+await device.set_temperature(141)  # Just use the display temperature!
+
+status = await device.get_status()
+print(f"Temperature: {status.dhw_temperature}°F")  # Shows calibrated value
+```
+
+### Temperature Ranges
+- **Display Range**: 90-151°F (what you see on app/display)
+- **Device Range**: 70-131°F (internal protocol values)  
+- **Safe Range**: 100-140°F (recommended operation)
+
+See `TEMPERATURE_CALIBRATION.md` for complete details.
 
 ## Home Assistant Integration
 

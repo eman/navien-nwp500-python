@@ -6,6 +6,65 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+# Temperature calibration offset - adjust readings to match app/display values
+# User observed that temperature readings are 20°F lower than actual display
+TEMPERATURE_CALIBRATION_OFFSET = 20
+
+
+def calibrate_temperature_from_raw(raw_temp: int) -> int:
+    """
+    Convert raw temperature value to calibrated display temperature.
+    
+    Args:
+        raw_temp: Raw temperature from device API
+        
+    Returns:
+        Calibrated temperature matching app/display values
+    """
+    return raw_temp + TEMPERATURE_CALIBRATION_OFFSET
+
+
+def calibrate_temperature_to_raw(display_temp: int) -> int:
+    """
+    Convert calibrated display temperature to raw value for device API.
+    
+    Args:
+        display_temp: Temperature as shown on app/display
+        
+    Returns:
+        Raw temperature value to send to device
+    """
+    return display_temp - TEMPERATURE_CALIBRATION_OFFSET
+
+
+def convert_celsius_to_fahrenheit(celsius: float) -> float:
+    """
+    Convert Celsius temperature to Fahrenheit.
+    
+    Args:
+        celsius: Temperature in Celsius
+        
+    Returns:
+        Temperature in Fahrenheit
+    """
+    return celsius * 9.0 / 5.0 + 32.0
+
+
+def convert_ambient_temperature(raw_ambient: int) -> float:
+    """
+    Convert raw ambient temperature value to Fahrenheit.
+    
+    The ambient_temperature field appears to be in Celsius (confirmed by 
+    user testing: 21.4°C = 70.5°F matching 69.7°F room thermometer).
+    
+    Args:
+        raw_ambient: Raw ambient temperature value from device (Celsius)
+        
+    Returns:
+        Temperature in Fahrenheit
+    """
+    return convert_celsius_to_fahrenheit(float(raw_ambient))
+
 
 @dataclass
 class DeviceFeatures:

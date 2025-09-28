@@ -10,7 +10,7 @@ import aiohttp
 
 from .config import ReconnectConfig
 from .exceptions import CommunicationError, DeviceError
-from .models import DeviceInfo, DeviceStatus, EnergyUsage, Reservation
+from .models import DeviceInfo, DeviceStatus, EnergyUsage, Reservation, calibrate_temperature_to_raw
 from .mqtt import NaviLinkMQTT
 from .utils import normalize_mac_address, validate_mac_address
 
@@ -153,7 +153,8 @@ class NaviLinkDevice:
         Set target DHW temperature.
 
         Args:
-            temperature: Target temperature in Fahrenheit (70-131°F per device specs)
+            temperature: Target temperature in Fahrenheit (90-151°F display range, 
+                        corresponding to 70-131°F raw device range)
 
         Returns:
             Control command result
@@ -161,19 +162,22 @@ class NaviLinkDevice:
         Raises:
             DeviceError: If temperature is out of range or control fails
         """
-        # Use actual device range from device info response
-        if not 70 <= temperature <= 131:
-            raise ValueError(f"Temperature {temperature}°F out of range (70-131°F)")
+        # Validate display temperature range (adjusted for +20°F calibration)
+        if not 90 <= temperature <= 151:
+            raise ValueError(f"Temperature {temperature}°F out of range (90-151°F)")
 
+        # Convert to raw device temperature (subtract calibration offset)
+        raw_temperature = calibrate_temperature_to_raw(temperature)
+        
         logger.info(
-            f"Setting temperature to {temperature}°F for device {self.mac_address}"
+            f"Setting temperature to {temperature}°F (raw: {raw_temperature}°F) for device {self.mac_address}"
         )
 
         # Temperature control command (inferred from protocol analysis)
         control_data = {
             "command": 33554438,  # Temperature command (estimated from pattern)
             "mode": "dhw-temp-setting",
-            "param": [temperature],
+            "param": [raw_temperature],  # Send raw temperature to device
             "paramStr": "",
         }
 
